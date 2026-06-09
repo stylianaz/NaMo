@@ -7,8 +7,8 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:location/location.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -387,16 +387,15 @@ class StudyMapScreen extends StatefulWidget {
 
 class _StudyMapScreenState extends State<StudyMapScreen> {
   final MapController _mapController = MapController();
-  final Location _location = Location();
   final AudioPlayer _audioPlayer = AudioPlayer();
 
-  StreamSubscription<LocationData>? _locationSubscription;
+  StreamSubscription<Position>? _positionSubscription;
 
   late StudyRoute currentRoute;
   late FeedbackCondition currentCondition;
   late RouteSession session;
 
-  LatLng defaultCenter = const LatLng(52.0907, 5.1214);
+  final LatLng fallbackCenter = const LatLng(52.0907, 5.1214);
 
   LatLng? origin;
   LatLng? currentLocation;
@@ -411,10 +410,12 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
 
   int currentStep = 0;
 
+  bool routeStarted = false;
   bool gpsTrackingActive = false;
+  bool simulatedMode = false;
   bool studyAreaCreated = false;
 
-  String gpsStatus = 'Preparing GPS...';
+  String gpsStatus = 'Stand at the start point, then set origin.';
 
   DateTime? lastCueTime;
   DateTime? lastOffRouteEventTime;
@@ -439,13 +440,12 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
       events: [],
     );
 
-    _logEvent('route_started');
-    _initializeStudyArea();
+    _logEvent('route_screen_opened');
   }
 
   @override
   void dispose() {
-    _locationSubscription?.cancel();
+    _positionSubscription?.cancel();
     _audioPlayer.dispose();
     super.dispose();
   }
@@ -460,6 +460,10 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
   }
 
   String _currentInstruction() {
+    if (!routeStarted) {
+      return 'Set study origin';
+    }
+
     if (currentStep >= currentRoute.steps.length) {
       return 'Arrive at destination';
     }
@@ -468,6 +472,8 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
   }
 
   IconData _currentIcon() {
+    if (!routeStarted) return Icons.gps_fixed;
+
     if (currentStep >= currentRoute.steps.length) {
       return Icons.flag;
     }
@@ -498,60 +504,60 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
     );
   }
 
-  Future<bool> _ensureLocationReady() async {
-    bool serviceEnabled = await _location.serviceEnabled();
-
-    if (!serviceEnabled) {
-      serviceEnabled = await _location.requestService();
-
-      if (!serviceEnabled) {
-        setState(() {
-          gpsStatus = 'Location service disabled';
-        });
-        return false;
-      }
-    }
-
-    PermissionStatus permission = await _location.hasPermission();
-
-    if (permission == PermissionStatus.denied) {
-      permission = await _location.requestPermission();
-
-      if (permission != PermissionStatus.granted) {
-        setState(() {
-          gpsStatus = 'Location permission denied';
-        });
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  Future<void> _initializeStudyArea() async {
+  Future<void> _startRouteAndSetOrigin() async {
     setState(() {
-      gpsStatus = 'Requesting location...';
+      gpsStatus = 'Trying GPS for 10 seconds...';
+      routeStarted = false;
     });
 
-    final ready = await _ensureLocationReady();
+    final position = await _tryGetGpsPosition();
 
-    if (!ready) {
-      _logEvent('gps_permission_failed');
+    if (position == null) {
+      _startSimulatedMode(
+        reason: 'GPS unavailable or timed out. Using simulated route mode.',
+      );
       return;
     }
 
-    final currentData = await _location.getLocation();
+    final start = LatLng(position.latitude, position.longitude);
 
-    if (currentData.latitude == null || currentData.longitude == null) {
-      setState(() {
-        gpsStatus = 'Could not get location';
-      });
-      _logEvent('gps_start_failed');
-      return;
+    _startGpsMode(start, position);
+  }
+
+  Future<Position?> _tryGetGpsPosition() async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+
+      if (!serviceEnabled) {
+        _logEvent('gps_service_disabled');
+        return null;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        _logEvent('gps_permission_denied');
+        return null;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 10),
+      );
+
+      return position;
+    } catch (_) {
+      _logEvent('gps_initial_position_failed');
+      return null;
     }
+  }
 
-    final start = LatLng(currentData.latitude!, currentData.longitude!);
-
+  void _startGpsMode(LatLng start, Position initialPosition) {
     origin = start;
     currentLocation = start;
 
@@ -559,70 +565,102 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
     fakeRoutePoints = _createFakeRoute(start, currentRoute.points);
 
     setState(() {
+      routeStarted = true;
       studyAreaCreated = true;
       gpsTrackingActive = true;
+      simulatedMode = false;
+      currentStep = 0;
+      session.currentStep = 0;
       userX = 0.0;
       userY = 0.0;
+      currentSpeedKmh = initialPosition.speed * 3.6;
       gpsStatus = 'GPS active. Origin saved as (0,0).';
     });
 
     _logEvent('gps_origin_set');
     _logEvent('study_area_created');
+    _logEvent('gps_mode_started');
 
-    _mapController.move(start, 19);
+    _mapController.move(start, 20);
 
-    _startLocationStream();
+    _startGpsStream();
   }
 
-  void _startLocationStream() {
-    _location.changeSettings(
+  void _startSimulatedMode({required String reason}) {
+    origin = fallbackCenter;
+    currentLocation = _offsetMetersToLatLng(fallbackCenter, 0, 0);
+
+    studyBoundary = _createStudyBoundary(fallbackCenter);
+    fakeRoutePoints = _createFakeRoute(fallbackCenter, currentRoute.points);
+
+    setState(() {
+      routeStarted = true;
+      studyAreaCreated = true;
+      gpsTrackingActive = false;
+      simulatedMode = true;
+      currentStep = 0;
+      session.currentStep = 0;
+      userX = 0.0;
+      userY = 0.0;
+      currentSpeedKmh = 0.0;
+      gpsStatus = reason;
+    });
+
+    _logEvent('simulated_mode_started');
+    _logEvent('study_area_created_fallback');
+
+    _mapController.move(fallbackCenter, 20);
+  }
+
+  void _startGpsStream() {
+    const settings = LocationSettings(
       accuracy: LocationAccuracy.high,
-      interval: 1000,
       distanceFilter: 1,
     );
 
-    _locationSubscription = _location.onLocationChanged.listen(
-      (LocationData data) {
-        if (data.latitude == null || data.longitude == null || origin == null) {
-          return;
-        }
+    _positionSubscription = Geolocator.getPositionStream(
+      locationSettings: settings,
+    ).listen(
+      (Position position) {
+        if (origin == null) return;
 
-        final pos = LatLng(data.latitude!, data.longitude!);
+        final pos = LatLng(position.latitude, position.longitude);
         final virtual = _latLngToVirtual(origin!, pos);
 
         setState(() {
           currentLocation = pos;
-          currentSpeedKmh = (data.speed ?? 0.0) * 3.6;
           userX = virtual.x;
           userY = virtual.y;
+          currentSpeedKmh = position.speed * 3.6;
           userPath.add(pos);
 
           pathFollowed.add({
             'timestamp': DateTime.now().toIso8601String(),
+            'mode': 'gps',
             'lat': pos.latitude,
             'lng': pos.longitude,
             'virtualX': userX,
             'virtualY': userY,
             'speedKmh': currentSpeedKmh,
-            'accuracy': data.accuracy,
+            'accuracy': position.accuracy,
             'stepIndex': currentStep,
           });
 
           gpsStatus =
-              'GPS: x=${userX.toStringAsFixed(1)}, y=${userY.toStringAsFixed(1)}, ±${(data.accuracy ?? 0).toStringAsFixed(1)}m';
+              'GPS: x=${userX.toStringAsFixed(1)}, y=${userY.toStringAsFixed(1)}, ±${position.accuracy.toStringAsFixed(1)}m';
         });
 
-        if (studyAreaCreated) {
-          _checkAutomaticRouteProgress();
-          _checkOffRoute();
-        }
+        _checkAutomaticRouteProgress();
+        _checkOffRoute();
       },
       onError: (_) {
         setState(() {
-          gpsStatus = 'GPS stream error';
           gpsTrackingActive = false;
+          simulatedMode = true;
+          gpsStatus = 'GPS stream failed. Continuing in simulated mode.';
         });
-        _logEvent('gps_stream_error');
+
+        _logEvent('gps_stream_failed_switched_to_simulated');
       },
     );
   }
@@ -676,7 +714,7 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
 
   void _goToCurrentLocation() {
     if (currentLocation == null) return;
-    _mapController.move(currentLocation!, 19);
+    _mapController.move(currentLocation!, 20);
   }
 
   double _distanceBetweenVirtual(VirtualPoint a, VirtualPoint b) {
@@ -719,6 +757,8 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
   }
 
   void _checkAutomaticRouteProgress() {
+    if (!routeStarted) return;
+
     if (currentStep >= currentRoute.points.length - 1) {
       return;
     }
@@ -739,6 +779,8 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
   }
 
   bool _isUserOffRoute() {
+    if (!routeStarted) return false;
+
     if (currentStep >= currentRoute.points.length - 1) {
       return false;
     }
@@ -858,6 +900,8 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
   }
 
   void _manualReachedPoint() {
+    if (!routeStarted) return;
+
     final isLastStep = currentStep >= currentRoute.points.length - 1;
 
     if (isLastStep) {
@@ -869,6 +913,22 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
     setState(() {
       currentStep++;
       session.currentStep = currentStep;
+
+      if (simulatedMode && origin != null) {
+        final p = currentRoute.points[currentStep];
+        userX = p.x;
+        userY = p.y;
+        currentLocation = _offsetMetersToLatLng(origin!, userX, userY);
+        userPath.add(currentLocation!);
+
+        pathFollowed.add({
+          'timestamp': DateTime.now().toIso8601String(),
+          'mode': 'simulated',
+          'virtualX': userX,
+          'virtualY': userY,
+          'stepIndex': currentStep,
+        });
+      }
     });
 
     _logEvent('manual_reached_point');
@@ -876,12 +936,14 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
   }
 
   void _markError(String type) {
+    if (!routeStarted) return;
+
     _logEvent(type);
     _playCue('off_route');
   }
 
   Future<void> _endRoute({required bool completed}) async {
-    await _locationSubscription?.cancel();
+    await _positionSubscription?.cancel();
 
     session.endTime = DateTime.now();
     session.completed = completed;
@@ -899,6 +961,7 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
             'lng': origin!.longitude,
           };
 
+    sessionJson['trackingMode'] = simulatedMode ? 'simulated' : 'gps';
     sessionJson['pathFollowed'] = pathFollowed;
     sessionJson['gpsTrackingActive'] = gpsTrackingActive;
     sessionJson['gpsStatusAtEnd'] = gpsStatus;
@@ -937,7 +1000,7 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final center = currentLocation ?? origin ?? defaultCenter;
+    final center = currentLocation ?? origin ?? fallbackCenter;
 
     final markers = <Marker>[
       if (currentLocation != null)
@@ -1052,25 +1115,70 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
               icon: _currentIcon(),
             ),
           ),
-          Positioned(
-            bottom: 20,
-            left: 16,
-            right: 16,
-            child: _ResearcherControls(
-              isLastStep: currentStep >= currentRoute.points.length - 1,
-              speedText: '${currentSpeedKmh.toStringAsFixed(1)} km/h',
-              onReachedPoint: _manualReachedPoint,
-              onMissedTurn: () => _markError('missed_turn'),
-              onWrongTurn: () => _markError('wrong_turn'),
-              onBacktracking: () => _markError('backtracking'),
-              onTerminate: () => _endRoute(completed: false),
-              onGoToLocation: _goToCurrentLocation,
-              onTestCue: () {
-                final maneuver = currentRoute.steps[currentStep].maneuver;
-                _playCue(maneuver);
-              },
+          if (!routeStarted)
+            Center(
+              child: Card(
+                elevation: 8,
+                color: Colors.white,
+                surfaceTintColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.gps_fixed,
+                        size: 42,
+                        color: Colors.blue,
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Set study origin',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Stand at the physical start point.\nThe app will try GPS first. If GPS fails, it will use simulated mode.',
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      FilledButton(
+                        onPressed: _startRouteAndSetOrigin,
+                        child: const Text('Start Route and Set Origin'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
-          ),
+          if (routeStarted)
+            Positioned(
+              bottom: 20,
+              left: 16,
+              right: 16,
+              child: _ResearcherControls(
+                isLastStep: currentStep >= currentRoute.points.length - 1,
+                speedText: simulatedMode
+                    ? 'Simulated mode'
+                    : '${currentSpeedKmh.toStringAsFixed(1)} km/h',
+                onReachedPoint: _manualReachedPoint,
+                onMissedTurn: () => _markError('missed_turn'),
+                onWrongTurn: () => _markError('wrong_turn'),
+                onBacktracking: () => _markError('backtracking'),
+                onTerminate: () => _endRoute(completed: false),
+                onGoToLocation: _goToCurrentLocation,
+                onTestCue: () {
+                  final maneuver = currentRoute.steps[currentStep].maneuver;
+                  _playCue(maneuver);
+                },
+              ),
+            ),
         ],
       ),
     );
