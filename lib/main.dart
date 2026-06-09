@@ -1,9 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
+import 'dart:typed_data';
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:location/location.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -32,11 +37,11 @@ enum FeedbackCondition {
   visualHaptic,
 }
 
-class RoutePoint {
+class VirtualPoint {
   final double x;
   final double y;
 
-  const RoutePoint(this.x, this.y);
+  const VirtualPoint(this.x, this.y);
 
   Map<String, dynamic> toJson() => {
         'x': x,
@@ -44,14 +49,39 @@ class RoutePoint {
       };
 }
 
+class RouteStep {
+  final VirtualPoint point;
+  final String instruction;
+  final String maneuver;
+
+  const RouteStep({
+    required this.point,
+    required this.instruction,
+    required this.maneuver,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'point': point.toJson(),
+        'instruction': instruction,
+        'maneuver': maneuver,
+      };
+}
+
 class StudyRoute {
   final String id;
-  final List<RoutePoint> points;
+  final List<RouteStep> steps;
 
   const StudyRoute({
     required this.id,
-    required this.points,
+    required this.steps,
   });
+
+  List<VirtualPoint> get points => steps.map((step) => step.point).toList();
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'steps': steps.map((step) => step.toJson()).toList(),
+      };
 }
 
 class StudyEvent {
@@ -107,29 +137,69 @@ class RouteSession {
         'completionTimeSeconds': completionTimeSeconds,
         'completed': completed,
         'currentStep': currentStep,
-        'events': events.map((e) => e.toJson()).toList(),
+        'events': events.map((event) => event.toJson()).toList(),
       };
 }
 
 const routeA = StudyRoute(
   id: 'Route A',
-  points: [
-    RoutePoint(1, 1),
-    RoutePoint(1, 4),
-    RoutePoint(4, 4),
-    RoutePoint(4, 8),
-    RoutePoint(8, 8),
+  steps: [
+    RouteStep(
+      point: VirtualPoint(0, 0),
+      instruction: 'Start walking straight',
+      maneuver: 'straight',
+    ),
+    RouteStep(
+      point: VirtualPoint(0, 3),
+      instruction: 'Turn right soon',
+      maneuver: 'right',
+    ),
+    RouteStep(
+      point: VirtualPoint(3, 3),
+      instruction: 'Continue straight',
+      maneuver: 'straight',
+    ),
+    RouteStep(
+      point: VirtualPoint(3, 7),
+      instruction: 'Turn right soon',
+      maneuver: 'right',
+    ),
+    RouteStep(
+      point: VirtualPoint(7, 7),
+      instruction: 'Arrive at destination',
+      maneuver: 'arrive',
+    ),
   ],
 );
 
 const routeB = StudyRoute(
   id: 'Route B',
-  points: [
-    RoutePoint(1, 1),
-    RoutePoint(4, 1),
-    RoutePoint(4, 5),
-    RoutePoint(8, 5),
-    RoutePoint(8, 8),
+  steps: [
+    RouteStep(
+      point: VirtualPoint(0, 0),
+      instruction: 'Start walking straight',
+      maneuver: 'straight',
+    ),
+    RouteStep(
+      point: VirtualPoint(3, 0),
+      instruction: 'Turn left soon',
+      maneuver: 'left',
+    ),
+    RouteStep(
+      point: VirtualPoint(3, 4),
+      instruction: 'Continue straight',
+      maneuver: 'straight',
+    ),
+    RouteStep(
+      point: VirtualPoint(7, 4),
+      instruction: 'Turn left soon',
+      maneuver: 'left',
+    ),
+    RouteStep(
+      point: VirtualPoint(7, 8),
+      instruction: 'Arrive at destination',
+      maneuver: 'arrive',
+    ),
   ],
 );
 
@@ -171,7 +241,7 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => NavigationScreen(
+        builder: (_) => StudyMapScreen(
           participantId: participantId,
           routeOrder: routeOrder,
           conditionOrder: conditionOrder,
@@ -295,14 +365,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class NavigationScreen extends StatefulWidget {
+class StudyMapScreen extends StatefulWidget {
   final String participantId;
   final List<StudyRoute> routeOrder;
   final List<FeedbackCondition> conditionOrder;
   final int routeIndex;
   final List<Map<String, dynamic>> allSessionLogs;
 
-  const NavigationScreen({
+  const StudyMapScreen({
     super.key,
     required this.participantId,
     required this.routeOrder,
@@ -312,25 +382,47 @@ class NavigationScreen extends StatefulWidget {
   });
 
   @override
-  State<NavigationScreen> createState() => _NavigationScreenState();
+  State<StudyMapScreen> createState() => _StudyMapScreenState();
 }
 
-class _NavigationScreenState extends State<NavigationScreen> {
+class _StudyMapScreenState extends State<StudyMapScreen> {
+  final MapController _mapController = MapController();
+  final Location _location = Location();
+  final AudioPlayer _audioPlayer = AudioPlayer();
+
+  StreamSubscription<LocationData>? _locationSubscription;
+
   late StudyRoute currentRoute;
   late FeedbackCondition currentCondition;
   late RouteSession session;
 
-  Position? originPosition;
-  Position? currentGpsPosition;
-  StreamSubscription<Position>? positionStream;
+  LatLng defaultCenter = const LatLng(52.0907, 5.1214);
 
-  double userX = 1.0;
-  double userY = 1.0;
+  LatLng? origin;
+  LatLng? currentLocation;
+
+  List<LatLng> studyBoundary = [];
+  List<LatLng> fakeRoutePoints = [];
+  List<LatLng> userPath = [];
+
+  double userX = 0.0;
+  double userY = 0.0;
+  double currentSpeedKmh = 0.0;
+
+  int currentStep = 0;
 
   bool gpsTrackingActive = false;
-  String gpsStatus = 'GPS not started yet';
+  bool studyAreaCreated = false;
+
+  String gpsStatus = 'Preparing GPS...';
+
+  DateTime? lastCueTime;
+  DateTime? lastOffRouteEventTime;
 
   final List<Map<String, dynamic>> pathFollowed = [];
+
+  static const double waypointReachRadius = 1.8;
+  static const double offRouteThreshold = 2.8;
 
   @override
   void initState() {
@@ -338,9 +430,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
     currentRoute = widget.routeOrder[widget.routeIndex];
     currentCondition = widget.conditionOrder[widget.routeIndex];
-
-    userX = currentRoute.points.first.x;
-    userY = currentRoute.points.first.y;
 
     session = RouteSession(
       participantId: widget.participantId,
@@ -351,12 +440,13 @@ class _NavigationScreenState extends State<NavigationScreen> {
     );
 
     _logEvent('route_started');
-    _startGpsTracking();
+    _initializeStudyArea();
   }
 
   @override
   void dispose() {
-    positionStream?.cancel();
+    _locationSubscription?.cancel();
+    _audioPlayer.dispose();
     super.dispose();
   }
 
@@ -370,20 +460,31 @@ class _NavigationScreenState extends State<NavigationScreen> {
   }
 
   String _currentInstruction() {
-    if (session.currentStep >= currentRoute.points.length - 1) {
+    if (currentStep >= currentRoute.steps.length) {
       return 'Arrive at destination';
     }
 
-    final current = currentRoute.points[session.currentStep];
-    final next = currentRoute.points[session.currentStep + 1];
+    return currentRoute.steps[currentStep].instruction;
+  }
 
-    final dx = next.x - current.x;
-    final dy = next.y - current.y;
+  IconData _currentIcon() {
+    if (currentStep >= currentRoute.steps.length) {
+      return Icons.flag;
+    }
 
-    if (dx.abs() > dy.abs()) {
-      return dx > 0 ? 'Continue east, then follow the blue route' : 'Continue west, then follow the blue route';
-    } else {
-      return dy > 0 ? 'Continue north, then follow the blue route' : 'Continue south, then follow the blue route';
+    final maneuver = currentRoute.steps[currentStep].maneuver;
+
+    switch (maneuver) {
+      case 'left':
+        return Icons.turn_left;
+      case 'right':
+        return Icons.turn_right;
+      case 'straight':
+        return Icons.straight;
+      case 'arrive':
+        return Icons.flag;
+      default:
+        return Icons.navigation;
     }
   }
 
@@ -392,184 +493,412 @@ class _NavigationScreenState extends State<NavigationScreen> {
       StudyEvent(
         type: type,
         timestamp: DateTime.now(),
-        stepIndex: session.currentStep,
+        stepIndex: currentStep,
       ),
     );
   }
 
-  Future<bool> _ensureLocationPermission() async {
-    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+  Future<bool> _ensureLocationReady() async {
+    bool serviceEnabled = await _location.serviceEnabled();
 
     if (!serviceEnabled) {
-      setState(() {
-        gpsStatus = 'Location services are disabled';
-      });
-      return false;
+      serviceEnabled = await _location.requestService();
+
+      if (!serviceEnabled) {
+        setState(() {
+          gpsStatus = 'Location service disabled';
+        });
+        return false;
+      }
     }
 
-    LocationPermission permission = await Geolocator.checkPermission();
+    PermissionStatus permission = await _location.hasPermission();
 
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-    }
+    if (permission == PermissionStatus.denied) {
+      permission = await _location.requestPermission();
 
-    if (permission == LocationPermission.denied) {
-      setState(() {
-        gpsStatus = 'Location permission denied';
-      });
-      return false;
-    }
-
-    if (permission == LocationPermission.deniedForever) {
-      setState(() {
-        gpsStatus = 'Location permission permanently denied';
-      });
-      return false;
+      if (permission != PermissionStatus.granted) {
+        setState(() {
+          gpsStatus = 'Location permission denied';
+        });
+        return false;
+      }
     }
 
     return true;
   }
 
-  Map<String, double> _gpsToVirtualXY(Position origin, Position current) {
-    final startPoint = currentRoute.points.first;
-
-    final northDistance = Geolocator.distanceBetween(
-      origin.latitude,
-      origin.longitude,
-      current.latitude,
-      origin.longitude,
-    );
-
-    final eastDistance = Geolocator.distanceBetween(
-      origin.latitude,
-      origin.longitude,
-      origin.latitude,
-      current.longitude,
-    );
-
-    final isNorth = current.latitude >= origin.latitude;
-    final isEast = current.longitude >= origin.longitude;
-
-    final deltaY = isNorth ? northDistance : -northDistance;
-    final deltaX = isEast ? eastDistance : -eastDistance;
-
-    final virtualX = (startPoint.x + deltaX).clamp(0.0, 10.0);
-    final virtualY = (startPoint.y + deltaY).clamp(0.0, 10.0);
-
-    return {
-      'x': virtualX,
-      'y': virtualY,
-    };
-  }
-
-  Future<void> _startGpsTracking() async {
+  Future<void> _initializeStudyArea() async {
     setState(() {
-      gpsStatus = 'Requesting GPS permission...';
+      gpsStatus = 'Requesting location...';
     });
 
-    final hasPermission = await _ensureLocationPermission();
+    final ready = await _ensureLocationReady();
 
-    if (!hasPermission) {
+    if (!ready) {
       _logEvent('gps_permission_failed');
       return;
     }
 
-    try {
-      originPosition = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
+    final currentData = await _location.getLocation();
 
-      _logEvent('gps_origin_set');
-
+    if (currentData.latitude == null || currentData.longitude == null) {
       setState(() {
-        gpsStatus = 'GPS active. Origin saved.';
-        gpsTrackingActive = true;
-      });
-
-      const locationSettings = LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 1,
-      );
-
-      positionStream = Geolocator.getPositionStream(
-        locationSettings: locationSettings,
-      ).listen(
-        (Position position) {
-          if (originPosition == null) return;
-
-          final virtual = _gpsToVirtualXY(originPosition!, position);
-
-          setState(() {
-            currentGpsPosition = position;
-            userX = virtual['x']!;
-            userY = virtual['y']!;
-
-            pathFollowed.add({
-              'timestamp': DateTime.now().toIso8601String(),
-              'lat': position.latitude,
-              'lng': position.longitude,
-              'accuracy': position.accuracy,
-              'virtualX': userX,
-              'virtualY': userY,
-              'stepIndex': session.currentStep,
-            });
-
-            gpsStatus =
-                'GPS active: x=${userX.toStringAsFixed(1)}, y=${userY.toStringAsFixed(1)}';
-          });
-        },
-        onError: (_) {
-          setState(() {
-            gpsStatus = 'GPS stream error';
-            gpsTrackingActive = false;
-          });
-          _logEvent('gps_stream_error');
-        },
-      );
-    } catch (_) {
-      setState(() {
-        gpsStatus = 'Could not start GPS';
-        gpsTrackingActive = false;
+        gpsStatus = 'Could not get location';
       });
       _logEvent('gps_start_failed');
+      return;
+    }
+
+    final start = LatLng(currentData.latitude!, currentData.longitude!);
+
+    origin = start;
+    currentLocation = start;
+
+    studyBoundary = _createStudyBoundary(start);
+    fakeRoutePoints = _createFakeRoute(start, currentRoute.points);
+
+    setState(() {
+      studyAreaCreated = true;
+      gpsTrackingActive = true;
+      userX = 0.0;
+      userY = 0.0;
+      gpsStatus = 'GPS active. Origin saved as (0,0).';
+    });
+
+    _logEvent('gps_origin_set');
+    _logEvent('study_area_created');
+
+    _mapController.move(start, 19);
+
+    _startLocationStream();
+  }
+
+  void _startLocationStream() {
+    _location.changeSettings(
+      accuracy: LocationAccuracy.high,
+      interval: 1000,
+      distanceFilter: 1,
+    );
+
+    _locationSubscription = _location.onLocationChanged.listen(
+      (LocationData data) {
+        if (data.latitude == null || data.longitude == null || origin == null) {
+          return;
+        }
+
+        final pos = LatLng(data.latitude!, data.longitude!);
+        final virtual = _latLngToVirtual(origin!, pos);
+
+        setState(() {
+          currentLocation = pos;
+          currentSpeedKmh = (data.speed ?? 0.0) * 3.6;
+          userX = virtual.x;
+          userY = virtual.y;
+          userPath.add(pos);
+
+          pathFollowed.add({
+            'timestamp': DateTime.now().toIso8601String(),
+            'lat': pos.latitude,
+            'lng': pos.longitude,
+            'virtualX': userX,
+            'virtualY': userY,
+            'speedKmh': currentSpeedKmh,
+            'accuracy': data.accuracy,
+            'stepIndex': currentStep,
+          });
+
+          gpsStatus =
+              'GPS: x=${userX.toStringAsFixed(1)}, y=${userY.toStringAsFixed(1)}, ±${(data.accuracy ?? 0).toStringAsFixed(1)}m';
+        });
+
+        if (studyAreaCreated) {
+          _checkAutomaticRouteProgress();
+          _checkOffRoute();
+        }
+      },
+      onError: (_) {
+        setState(() {
+          gpsStatus = 'GPS stream error';
+          gpsTrackingActive = false;
+        });
+        _logEvent('gps_stream_error');
+      },
+    );
+  }
+
+  LatLng _offsetMetersToLatLng(
+    LatLng origin,
+    double eastMeters,
+    double northMeters,
+  ) {
+    const earthRadius = 6378137.0;
+
+    final dLat = northMeters / earthRadius;
+    final dLng = eastMeters /
+        (earthRadius * math.cos(math.pi * origin.latitude / 180.0));
+
+    final lat = origin.latitude + dLat * 180.0 / math.pi;
+    final lng = origin.longitude + dLng * 180.0 / math.pi;
+
+    return LatLng(lat, lng);
+  }
+
+  VirtualPoint _latLngToVirtual(LatLng origin, LatLng current) {
+    const metersPerDegreeLat = 111320.0;
+
+    final metersPerDegreeLng =
+        111320.0 * math.cos(origin.latitude * math.pi / 180.0);
+
+    final x = (current.longitude - origin.longitude) * metersPerDegreeLng;
+    final y = (current.latitude - origin.latitude) * metersPerDegreeLat;
+
+    return VirtualPoint(x, y);
+  }
+
+  List<LatLng> _createStudyBoundary(LatLng origin) {
+    return [
+      _offsetMetersToLatLng(origin, 0, 0),
+      _offsetMetersToLatLng(origin, 10, 0),
+      _offsetMetersToLatLng(origin, 10, 10),
+      _offsetMetersToLatLng(origin, 0, 10),
+    ];
+  }
+
+  List<LatLng> _createFakeRoute(
+    LatLng origin,
+    List<VirtualPoint> virtualRoute,
+  ) {
+    return virtualRoute.map((point) {
+      return _offsetMetersToLatLng(origin, point.x, point.y);
+    }).toList();
+  }
+
+  void _goToCurrentLocation() {
+    if (currentLocation == null) return;
+    _mapController.move(currentLocation!, 19);
+  }
+
+  double _distanceBetweenVirtual(VirtualPoint a, VirtualPoint b) {
+    final dx = a.x - b.x;
+    final dy = a.y - b.y;
+
+    return math.sqrt(dx * dx + dy * dy);
+  }
+
+  double _distanceToSegment(
+    VirtualPoint p,
+    VirtualPoint a,
+    VirtualPoint b,
+  ) {
+    final px = p.x;
+    final py = p.y;
+    final ax = a.x;
+    final ay = a.y;
+    final bx = b.x;
+    final by = b.y;
+
+    final dx = bx - ax;
+    final dy = by - ay;
+
+    if (dx == 0 && dy == 0) {
+      return _distanceBetweenVirtual(p, a);
+    }
+
+    final t = (((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy))
+        .clamp(0.0, 1.0)
+        .toDouble();
+
+    final closestX = ax + t * dx;
+    final closestY = ay + t * dy;
+
+    final distanceX = px - closestX;
+    final distanceY = py - closestY;
+
+    return math.sqrt(distanceX * distanceX + distanceY * distanceY);
+  }
+
+  void _checkAutomaticRouteProgress() {
+    if (currentStep >= currentRoute.points.length - 1) {
+      return;
+    }
+
+    final user = VirtualPoint(userX, userY);
+    final nextPoint = currentRoute.points[currentStep + 1];
+    final distanceToNext = _distanceBetweenVirtual(user, nextPoint);
+
+    if (distanceToNext <= waypointReachRadius) {
+      setState(() {
+        currentStep++;
+        session.currentStep = currentStep;
+      });
+
+      _logEvent('auto_reached_point');
+      _playCue(currentRoute.steps[currentStep].maneuver);
     }
   }
 
-  void _reachedPoint() {
-    final isLastStep = session.currentStep == currentRoute.points.length - 1;
+  bool _isUserOffRoute() {
+    if (currentStep >= currentRoute.points.length - 1) {
+      return false;
+    }
+
+    final user = VirtualPoint(userX, userY);
+    final start = currentRoute.points[currentStep];
+    final end = currentRoute.points[currentStep + 1];
+
+    final distance = _distanceToSegment(user, start, end);
+
+    return distance > offRouteThreshold;
+  }
+
+  void _checkOffRoute() {
+    if (!_isUserOffRoute()) return;
+
+    final now = DateTime.now();
+
+    if (lastOffRouteEventTime != null &&
+        now.difference(lastOffRouteEventTime!).inSeconds < 4) {
+      return;
+    }
+
+    lastOffRouteEventTime = now;
+    _logEvent('off_route_detected');
+    _playCue('off_route');
+  }
+
+  Future<void> _playCue(String maneuver) async {
+    final now = DateTime.now();
+
+    if (lastCueTime != null &&
+        now.difference(lastCueTime!).inMilliseconds < 900) {
+      return;
+    }
+
+    lastCueTime = now;
+    _logEvent('cue_$maneuver');
+
+    if (currentCondition == FeedbackCondition.visualAudio) {
+      await _playAudioCue(maneuver);
+    } else {
+      await _playHapticCue(maneuver);
+    }
+  }
+
+  Future<void> _playAudioCue(String maneuver) async {
+    switch (maneuver) {
+      case 'straight':
+        await _playBeep(frequency: 880, durationMs: 120);
+        break;
+
+      case 'left':
+        await _playBeep(frequency: 880, durationMs: 100);
+        await Future.delayed(const Duration(milliseconds: 120));
+        await _playBeep(frequency: 880, durationMs: 100);
+        break;
+
+      case 'right':
+        await _playBeep(frequency: 660, durationMs: 350);
+        break;
+
+      case 'off_route':
+        for (int i = 0; i < 3; i++) {
+          await _playBeep(frequency: 440, durationMs: 100);
+          await Future.delayed(const Duration(milliseconds: 80));
+        }
+        break;
+
+      case 'arrive':
+        await _playBeep(frequency: 1000, durationMs: 120);
+        await Future.delayed(const Duration(milliseconds: 90));
+        await _playBeep(frequency: 1200, durationMs: 160);
+        break;
+    }
+  }
+
+  Future<void> _playHapticCue(String maneuver) async {
+    switch (maneuver) {
+      case 'straight':
+        await HapticFeedback.lightImpact();
+        break;
+
+      case 'left':
+        await HapticFeedback.lightImpact();
+        await Future.delayed(const Duration(milliseconds: 120));
+        await HapticFeedback.lightImpact();
+        break;
+
+      case 'right':
+        await HapticFeedback.mediumImpact();
+        break;
+
+      case 'off_route':
+        await HapticFeedback.heavyImpact();
+        break;
+
+      case 'arrive':
+        await HapticFeedback.mediumImpact();
+        await Future.delayed(const Duration(milliseconds: 120));
+        await HapticFeedback.mediumImpact();
+        break;
+    }
+  }
+
+  Future<void> _playBeep({
+    required int frequency,
+    required int durationMs,
+  }) async {
+    final wavBytes = _generateBeepWav(
+      frequency: frequency,
+      durationMs: durationMs,
+    );
+
+    await _audioPlayer.stop();
+    await _audioPlayer.play(BytesSource(wavBytes));
+  }
+
+  void _manualReachedPoint() {
+    final isLastStep = currentStep >= currentRoute.points.length - 1;
 
     if (isLastStep) {
+      _playCue('arrive');
       _endRoute(completed: true);
       return;
     }
 
     setState(() {
-      _logEvent('reached_point');
-
-      session.currentStep++;
-
-      if (!gpsTrackingActive) {
-        final newPoint = currentRoute.points[session.currentStep];
-        userX = newPoint.x;
-        userY = newPoint.y;
-      }
+      currentStep++;
+      session.currentStep = currentStep;
     });
+
+    _logEvent('manual_reached_point');
+    _playCue(currentRoute.steps[currentStep].maneuver);
   }
 
   void _markError(String type) {
-    setState(() {
-      _logEvent(type);
-    });
+    _logEvent(type);
+    _playCue('off_route');
   }
 
   Future<void> _endRoute({required bool completed}) async {
-    await positionStream?.cancel();
+    await _locationSubscription?.cancel();
 
     session.endTime = DateTime.now();
     session.completed = completed;
+    session.currentStep = currentStep;
+
     _logEvent(completed ? 'route_completed' : 'route_terminated');
 
     final sessionJson = session.toJson();
+
+    sessionJson['routeDefinition'] = currentRoute.toJson();
+    sessionJson['origin'] = origin == null
+        ? null
+        : {
+            'lat': origin!.latitude,
+            'lng': origin!.longitude,
+          };
+
     sessionJson['pathFollowed'] = pathFollowed;
     sessionJson['gpsTrackingActive'] = gpsTrackingActive;
     sessionJson['gpsStatusAtEnd'] = gpsStatus;
@@ -584,6 +913,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
     ];
 
     final prefs = await SharedPreferences.getInstance();
+
     await prefs.setString(
       'namo_${widget.participantId}',
       jsonEncode(updatedLogs),
@@ -607,77 +937,167 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isLastStep = session.currentStep == currentRoute.points.length - 1;
-    final instruction = _currentInstruction();
+    final center = currentLocation ?? origin ?? defaultCenter;
+
+    final markers = <Marker>[
+      if (currentLocation != null)
+        Marker(
+          point: currentLocation!,
+          width: 70,
+          height: 70,
+          child: const Icon(
+            Icons.my_location,
+            color: Colors.blue,
+            size: 32,
+          ),
+        ),
+      if (fakeRoutePoints.isNotEmpty)
+        Marker(
+          point: fakeRoutePoints.first,
+          width: 50,
+          height: 50,
+          child: const Icon(
+            Icons.location_on,
+            color: Colors.green,
+            size: 34,
+          ),
+        ),
+      if (fakeRoutePoints.length > 1 && currentStep < fakeRoutePoints.length)
+        Marker(
+          point: fakeRoutePoints[currentStep],
+          width: 50,
+          height: 50,
+          child: const Icon(
+            Icons.adjust,
+            color: Colors.orange,
+            size: 30,
+          ),
+        ),
+      if (fakeRoutePoints.isNotEmpty)
+        Marker(
+          point: fakeRoutePoints.last,
+          width: 50,
+          height: 50,
+          child: const Icon(
+            Icons.flag,
+            color: Colors.red,
+            size: 34,
+          ),
+        ),
+    ];
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade100,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: CustomPaint(
-                painter: MapPainter(
-                  route: currentRoute,
-                  currentStep: session.currentStep,
-                  userX: userX,
-                  userY: userY,
+      body: Stack(
+        children: [
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: center,
+              initialZoom: 18,
+              minZoom: 3,
+              maxZoom: 22,
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.example.namo',
+              ),
+              if (studyBoundary.length >= 3)
+                PolygonLayer(
+                  polygons: [
+                    Polygon(
+                      points: studyBoundary,
+                      color: Colors.blue.withOpacity(0.10),
+                      borderColor: Colors.blueAccent,
+                      borderStrokeWidth: 2,
+                    ),
+                  ],
                 ),
-                child: Container(),
-              ),
+              if (userPath.length >= 2)
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: userPath,
+                      strokeWidth: 4,
+                      color: Colors.black.withOpacity(0.45),
+                    ),
+                  ],
+                ),
+              if (fakeRoutePoints.length >= 2)
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: fakeRoutePoints,
+                      strokeWidth: 8,
+                      color: Colors.blueAccent,
+                    ),
+                  ],
+                ),
+              if (markers.isNotEmpty)
+                MarkerLayer(
+                  markers: markers,
+                ),
+            ],
+          ),
+          Positioned(
+            top: 48,
+            left: 16,
+            right: 16,
+            child: _InstructionCard(
+              instruction: _currentInstruction(),
+              routeId: currentRoute.id,
+              condition: _conditionToText(currentCondition),
+              stepText: 'Step ${currentStep + 1} of ${currentRoute.steps.length}',
+              gpsStatus: gpsStatus,
+              icon: _currentIcon(),
             ),
-            Positioned(
-              top: 16,
-              left: 16,
-              right: 16,
-              child: _InstructionCard(
-                routeId: currentRoute.id,
-                condition: _conditionToText(currentCondition),
-                instruction: instruction,
-                stepText:
-                    'Step ${session.currentStep + 1} of ${currentRoute.points.length}',
-                gpsStatus: gpsStatus,
-              ),
+          ),
+          Positioned(
+            bottom: 20,
+            left: 16,
+            right: 16,
+            child: _ResearcherControls(
+              isLastStep: currentStep >= currentRoute.points.length - 1,
+              speedText: '${currentSpeedKmh.toStringAsFixed(1)} km/h',
+              onReachedPoint: _manualReachedPoint,
+              onMissedTurn: () => _markError('missed_turn'),
+              onWrongTurn: () => _markError('wrong_turn'),
+              onBacktracking: () => _markError('backtracking'),
+              onTerminate: () => _endRoute(completed: false),
+              onGoToLocation: _goToCurrentLocation,
+              onTestCue: () {
+                final maneuver = currentRoute.steps[currentStep].maneuver;
+                _playCue(maneuver);
+              },
             ),
-            Positioned(
-              left: 16,
-              right: 16,
-              bottom: 16,
-              child: _ResearcherControls(
-                isLastStep: isLastStep,
-                onReachedPoint: _reachedPoint,
-                onMissedTurn: () => _markError('missed_turn'),
-                onWrongTurn: () => _markError('wrong_turn'),
-                onBacktracking: () => _markError('backtracking'),
-                onTerminate: () => _endRoute(completed: false),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
 class _InstructionCard extends StatelessWidget {
+  final String instruction;
   final String routeId;
   final String condition;
-  final String instruction;
   final String stepText;
   final String gpsStatus;
+  final IconData icon;
 
   const _InstructionCard({
+    required this.instruction,
     required this.routeId,
     required this.condition,
-    required this.instruction,
     required this.stepText,
     required this.gpsStatus,
+    required this.icon,
   });
 
   @override
   Widget build(BuildContext context) {
     return Card(
-      elevation: 6,
+      elevation: 8,
       color: Colors.white,
       surfaceTintColor: Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
@@ -692,10 +1112,10 @@ class _InstructionCard extends StatelessWidget {
                 color: Colors.blue.shade600,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
-                Icons.navigation,
+              child: Icon(
+                icon,
                 color: Colors.white,
-                size: 30,
+                size: 32,
               ),
             ),
             const SizedBox(width: 14),
@@ -738,25 +1158,31 @@ class _InstructionCard extends StatelessWidget {
 
 class _ResearcherControls extends StatelessWidget {
   final bool isLastStep;
+  final String speedText;
   final VoidCallback onReachedPoint;
   final VoidCallback onMissedTurn;
   final VoidCallback onWrongTurn;
   final VoidCallback onBacktracking;
   final VoidCallback onTerminate;
+  final VoidCallback onGoToLocation;
+  final VoidCallback onTestCue;
 
   const _ResearcherControls({
     required this.isLastStep,
+    required this.speedText,
     required this.onReachedPoint,
     required this.onMissedTurn,
     required this.onWrongTurn,
     required this.onBacktracking,
     required this.onTerminate,
+    required this.onGoToLocation,
+    required this.onTestCue,
   });
 
   @override
   Widget build(BuildContext context) {
     return Card(
-      elevation: 6,
+      elevation: 8,
       color: Colors.white,
       surfaceTintColor: Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
@@ -765,6 +1191,14 @@ class _ResearcherControls extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Text(
+              'Researcher controls • $speedText',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade700,
+              ),
+            ),
+            const SizedBox(height: 8),
             FilledButton(
               onPressed: onReachedPoint,
               style: FilledButton.styleFrom(
@@ -797,9 +1231,27 @@ class _ResearcherControls extends StatelessWidget {
                 ),
               ],
             ),
-            TextButton(
-              onPressed: onTerminate,
-              child: const Text('Terminate Route'),
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: onGoToLocation,
+                    child: const Text('Center'),
+                  ),
+                ),
+                Expanded(
+                  child: TextButton(
+                    onPressed: onTestCue,
+                    child: const Text('Test Cue'),
+                  ),
+                ),
+                Expanded(
+                  child: TextButton(
+                    onPressed: onTerminate,
+                    child: const Text('Terminate'),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -830,7 +1282,7 @@ class SummaryScreen extends StatelessWidget {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (_) => NavigationScreen(
+        builder: (_) => StudyMapScreen(
           participantId: participantId,
           routeOrder: routeOrder,
           conditionOrder: conditionOrder,
@@ -937,188 +1389,47 @@ class SummaryScreen extends StatelessWidget {
   }
 }
 
-class MapPainter extends CustomPainter {
-  final StudyRoute route;
-  final int currentStep;
-  final double userX;
-  final double userY;
+Uint8List _generateBeepWav({
+  required int frequency,
+  required int durationMs,
+  int sampleRate = 44100,
+}) {
+  final sampleCount = (sampleRate * durationMs / 1000).round();
+  final dataLength = sampleCount * 2;
+  final fileLength = 44 + dataLength;
 
-  MapPainter({
-    required this.route,
-    required this.currentStep,
-    required this.userX,
-    required this.userY,
-  });
+  final bytes = ByteData(fileLength);
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    final padding = 38.0;
-    final mapSize = size.shortestSide - padding * 2;
-    final left = (size.width - mapSize) / 2;
-    final top = (size.height - mapSize) / 2 + 20;
-
-    Offset toScreen(RoutePoint p) {
-      final x = left + (p.x / 10.0) * mapSize;
-      final y = top + mapSize - (p.y / 10.0) * mapSize;
-      return Offset(x, y);
-    }
-
-    final backgroundPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = const Color(0xFFE8F1E5);
-
-    final mapRect = Rect.fromLTWH(left, top, mapSize, mapSize);
-    canvas.drawRect(mapRect, backgroundPaint);
-
-    _drawFakeMapBackground(canvas, mapRect);
-    _drawRoute(canvas, toScreen);
-    _drawMarkers(canvas, toScreen);
-    _drawUser(canvas, toScreen);
-  }
-
-  void _drawFakeMapBackground(Canvas canvas, Rect mapRect) {
-    final pathPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 18
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFFF7F3E8);
-
-    final pathBorderPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 22
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFFD7D1C2);
-
-    final faintLinePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1
-      ..color = Colors.white.withOpacity(0.7);
-
-    final parkPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = const Color(0xFFD8EBCB);
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(mapRect, const Radius.circular(28)),
-      parkPaint,
-    );
-
-    final p1 = Offset(mapRect.left + mapRect.width * 0.10, mapRect.top + mapRect.height * 0.25);
-    final p2 = Offset(mapRect.left + mapRect.width * 0.90, mapRect.top + mapRect.height * 0.25);
-    final p3 = Offset(mapRect.left + mapRect.width * 0.18, mapRect.top + mapRect.height * 0.70);
-    final p4 = Offset(mapRect.left + mapRect.width * 0.82, mapRect.top + mapRect.height * 0.70);
-    final p5 = Offset(mapRect.left + mapRect.width * 0.50, mapRect.top + mapRect.height * 0.08);
-    final p6 = Offset(mapRect.left + mapRect.width * 0.50, mapRect.top + mapRect.height * 0.92);
-
-    canvas.drawLine(p1, p2, pathBorderPaint);
-    canvas.drawLine(p3, p4, pathBorderPaint);
-    canvas.drawLine(p5, p6, pathBorderPaint);
-
-    canvas.drawLine(p1, p2, pathPaint);
-    canvas.drawLine(p3, p4, pathPaint);
-    canvas.drawLine(p5, p6, pathPaint);
-
-    for (int i = 1; i < 10; i++) {
-      final x = mapRect.left + (i / 10.0) * mapRect.width;
-      final y = mapRect.top + (i / 10.0) * mapRect.height;
-      canvas.drawLine(Offset(x, mapRect.top), Offset(x, mapRect.bottom), faintLinePaint);
-      canvas.drawLine(Offset(mapRect.left, y), Offset(mapRect.right, y), faintLinePaint);
+  void writeString(int offset, String value) {
+    for (int i = 0; i < value.length; i++) {
+      bytes.setUint8(offset + i, value.codeUnitAt(i));
     }
   }
 
-  void _drawRoute(Canvas canvas, Offset Function(RoutePoint p) toScreen) {
-    final routeShadowPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 14
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..color = Colors.blue.withOpacity(0.18);
+  writeString(0, 'RIFF');
+  bytes.setUint32(4, fileLength - 8, Endian.little);
+  writeString(8, 'WAVE');
+  writeString(12, 'fmt ');
+  bytes.setUint32(16, 16, Endian.little);
+  bytes.setUint16(20, 1, Endian.little);
+  bytes.setUint16(22, 1, Endian.little);
+  bytes.setUint32(24, sampleRate, Endian.little);
+  bytes.setUint32(28, sampleRate * 2, Endian.little);
+  bytes.setUint16(32, 2, Endian.little);
+  bytes.setUint16(34, 16, Endian.little);
+  writeString(36, 'data');
+  bytes.setUint32(40, dataLength, Endian.little);
 
-    final remainingRoutePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 8
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..color = Colors.blue.shade600;
+  final amplitude = 0.35 * 32767;
 
-    final completedRoutePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 8
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..color = Colors.green.shade600;
+  for (int i = 0; i < sampleCount; i++) {
+    final t = i / sampleRate;
+    final envelope = math.sin(math.pi * i / sampleCount);
+    final sample = math.sin(2 * math.pi * frequency * t);
+    final value = (sample * envelope * amplitude).round();
 
-    for (int i = 0; i < route.points.length - 1; i++) {
-      final start = toScreen(route.points[i]);
-      final end = toScreen(route.points[i + 1]);
-
-      canvas.drawLine(start, end, routeShadowPaint);
-      canvas.drawLine(
-        start,
-        end,
-        i < currentStep ? completedRoutePaint : remainingRoutePaint,
-      );
-    }
+    bytes.setInt16(44 + i * 2, value, Endian.little);
   }
 
-  void _drawMarkers(Canvas canvas, Offset Function(RoutePoint p) toScreen) {
-    final normalPointPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = Colors.white;
-
-    final normalPointBorderPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3
-      ..color = Colors.blue.shade600;
-
-    final currentPointPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = Colors.orange.shade700;
-
-    final destinationPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = Colors.red.shade600;
-
-    for (int i = 0; i < route.points.length; i++) {
-      final point = toScreen(route.points[i]);
-
-      if (i == route.points.length - 1) {
-        canvas.drawCircle(point, 11, destinationPaint);
-      } else if (i == currentStep) {
-        canvas.drawCircle(point, 10, currentPointPaint);
-      } else {
-        canvas.drawCircle(point, 8, normalPointPaint);
-        canvas.drawCircle(point, 8, normalPointBorderPaint);
-      }
-    }
-  }
-
-  void _drawUser(Canvas canvas, Offset Function(RoutePoint p) toScreen) {
-    final userPoint = toScreen(RoutePoint(userX, userY));
-
-    final accuracyPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = Colors.blue.withOpacity(0.18);
-
-    final userPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = Colors.blue.shade700;
-
-    final userBorderPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4
-      ..color = Colors.white;
-
-    canvas.drawCircle(userPoint, 20, accuracyPaint);
-    canvas.drawCircle(userPoint, 10, userPaint);
-    canvas.drawCircle(userPoint, 10, userBorderPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant MapPainter oldDelegate) {
-    return oldDelegate.currentStep != currentStep ||
-        oldDelegate.route != route ||
-        oldDelegate.userX != userX ||
-        oldDelegate.userY != userY;
-  }
+  return bytes.buffer.asUint8List();
 }
