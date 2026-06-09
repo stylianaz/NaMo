@@ -1,5 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -13,8 +17,10 @@ class NaMoApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'NaMo Study Prototype',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+        useMaterial3: true,
       ),
       home: const HomeScreen(),
     );
@@ -149,6 +155,12 @@ class _HomeScreenState extends State<HomeScreen> {
     return 'P${now.millisecondsSinceEpoch.toString().substring(7)}';
   }
 
+  void _generateNewId() {
+    setState(() {
+      participantId = _generateParticipantId();
+    });
+  }
+
   void _startStudy() {
     final routeOrder = selectedOrder == 0 ? [routeA, routeB] : [routeB, routeA];
 
@@ -176,57 +188,105 @@ class _HomeScreenState extends State<HomeScreen> {
         selectedOrder == 0 ? 'Route A → Route B' : 'Route B → Route A';
 
     final conditionOrderText = selectedOrder == 0
-        ? 'Visual+Audio → Visual+Haptic'
-        : 'Visual+Haptic → Visual+Audio';
+        ? 'Visual + Audio → Visual + Haptic'
+        : 'Visual + Haptic → Visual + Audio';
 
     return Scaffold(
+      backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
         title: const Text('NaMo Study Setup'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        elevation: 1,
       ),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'Generated Participant ID',
-              style: TextStyle(fontSize: 16),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              participantId,
-              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 24),
-            const Text('Counterbalancing Order'),
-            const SizedBox(height: 8),
-            DropdownButton<int>(
-              value: selectedOrder,
-              items: const [
-                DropdownMenuItem(
-                  value: 0,
-                  child: Text('Order 1: Route A + VA, then Route B + VH'),
+            Card(
+              elevation: 2,
+              color: Colors.white,
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Generated Participant ID',
+                      style: TextStyle(fontSize: 16),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      participantId,
+                      style: const TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton(
+                      onPressed: _generateNewId,
+                      child: const Text('Generate New ID'),
+                    ),
+                  ],
                 ),
-                DropdownMenuItem(
-                  value: 1,
-                  child: Text('Order 2: Route B + VH, then Route A + VA'),
-                ),
-              ],
-              onChanged: (value) {
-                if (value == null) return;
-                setState(() {
-                  selectedOrder = value;
-                });
-              },
+              ),
             ),
-            const SizedBox(height: 24),
-            Text('Route order: $routeOrderText'),
-            Text('Condition order: $conditionOrderText'),
+            const SizedBox(height: 18),
+            Card(
+              elevation: 2,
+              color: Colors.white,
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Counterbalancing Order',
+                      style: TextStyle(fontSize: 16),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<int>(
+                      value: selectedOrder,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        labelText: 'Study order',
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 0,
+                          child: Text('Order 1'),
+                        ),
+                        DropdownMenuItem(
+                          value: 1,
+                          child: Text('Order 2'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setState(() {
+                          selectedOrder = value;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    Text('Route order: $routeOrderText'),
+                    Text('Condition order: $conditionOrderText'),
+                  ],
+                ),
+              ),
+            ),
             const Spacer(),
-            ElevatedButton(
+            FilledButton(
               onPressed: _startStudy,
-              child: const Text('Start Study'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              child: const Text(
+                'Start Study',
+                style: TextStyle(fontSize: 18),
+              ),
             ),
           ],
         ),
@@ -260,12 +320,27 @@ class _NavigationScreenState extends State<NavigationScreen> {
   late FeedbackCondition currentCondition;
   late RouteSession session;
 
+  Position? originPosition;
+  Position? currentGpsPosition;
+  StreamSubscription<Position>? positionStream;
+
+  double userX = 1.0;
+  double userY = 1.0;
+
+  bool gpsTrackingActive = false;
+  String gpsStatus = 'GPS not started yet';
+
+  final List<Map<String, dynamic>> pathFollowed = [];
+
   @override
   void initState() {
     super.initState();
 
     currentRoute = widget.routeOrder[widget.routeIndex];
     currentCondition = widget.conditionOrder[widget.routeIndex];
+
+    userX = currentRoute.points.first.x;
+    userY = currentRoute.points.first.y;
 
     session = RouteSession(
       participantId: widget.participantId,
@@ -276,6 +351,13 @@ class _NavigationScreenState extends State<NavigationScreen> {
     );
 
     _logEvent('route_started');
+    _startGpsTracking();
+  }
+
+  @override
+  void dispose() {
+    positionStream?.cancel();
+    super.dispose();
   }
 
   String _conditionToText(FeedbackCondition condition) {
@@ -284,6 +366,24 @@ class _NavigationScreenState extends State<NavigationScreen> {
         return 'Visual + Audio';
       case FeedbackCondition.visualHaptic:
         return 'Visual + Haptic';
+    }
+  }
+
+  String _currentInstruction() {
+    if (session.currentStep >= currentRoute.points.length - 1) {
+      return 'Arrive at destination';
+    }
+
+    final current = currentRoute.points[session.currentStep];
+    final next = currentRoute.points[session.currentStep + 1];
+
+    final dx = next.x - current.x;
+    final dy = next.y - current.y;
+
+    if (dx.abs() > dy.abs()) {
+      return dx > 0 ? 'Continue east, then follow the blue route' : 'Continue west, then follow the blue route';
+    } else {
+      return dy > 0 ? 'Continue north, then follow the blue route' : 'Continue south, then follow the blue route';
     }
   }
 
@@ -297,14 +397,161 @@ class _NavigationScreenState extends State<NavigationScreen> {
     );
   }
 
+  Future<bool> _ensureLocationPermission() async {
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+
+    if (!serviceEnabled) {
+      setState(() {
+        gpsStatus = 'Location services are disabled';
+      });
+      return false;
+    }
+
+    LocationPermission permission = await Geolocator.checkPermission();
+
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+
+    if (permission == LocationPermission.denied) {
+      setState(() {
+        gpsStatus = 'Location permission denied';
+      });
+      return false;
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      setState(() {
+        gpsStatus = 'Location permission permanently denied';
+      });
+      return false;
+    }
+
+    return true;
+  }
+
+  Map<String, double> _gpsToVirtualXY(Position origin, Position current) {
+    final startPoint = currentRoute.points.first;
+
+    final northDistance = Geolocator.distanceBetween(
+      origin.latitude,
+      origin.longitude,
+      current.latitude,
+      origin.longitude,
+    );
+
+    final eastDistance = Geolocator.distanceBetween(
+      origin.latitude,
+      origin.longitude,
+      origin.latitude,
+      current.longitude,
+    );
+
+    final isNorth = current.latitude >= origin.latitude;
+    final isEast = current.longitude >= origin.longitude;
+
+    final deltaY = isNorth ? northDistance : -northDistance;
+    final deltaX = isEast ? eastDistance : -eastDistance;
+
+    final virtualX = (startPoint.x + deltaX).clamp(0.0, 10.0);
+    final virtualY = (startPoint.y + deltaY).clamp(0.0, 10.0);
+
+    return {
+      'x': virtualX,
+      'y': virtualY,
+    };
+  }
+
+  Future<void> _startGpsTracking() async {
+    setState(() {
+      gpsStatus = 'Requesting GPS permission...';
+    });
+
+    final hasPermission = await _ensureLocationPermission();
+
+    if (!hasPermission) {
+      _logEvent('gps_permission_failed');
+      return;
+    }
+
+    try {
+      originPosition = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      _logEvent('gps_origin_set');
+
+      setState(() {
+        gpsStatus = 'GPS active. Origin saved.';
+        gpsTrackingActive = true;
+      });
+
+      const locationSettings = LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 1,
+      );
+
+      positionStream = Geolocator.getPositionStream(
+        locationSettings: locationSettings,
+      ).listen(
+        (Position position) {
+          if (originPosition == null) return;
+
+          final virtual = _gpsToVirtualXY(originPosition!, position);
+
+          setState(() {
+            currentGpsPosition = position;
+            userX = virtual['x']!;
+            userY = virtual['y']!;
+
+            pathFollowed.add({
+              'timestamp': DateTime.now().toIso8601String(),
+              'lat': position.latitude,
+              'lng': position.longitude,
+              'accuracy': position.accuracy,
+              'virtualX': userX,
+              'virtualY': userY,
+              'stepIndex': session.currentStep,
+            });
+
+            gpsStatus =
+                'GPS active: x=${userX.toStringAsFixed(1)}, y=${userY.toStringAsFixed(1)}';
+          });
+        },
+        onError: (_) {
+          setState(() {
+            gpsStatus = 'GPS stream error';
+            gpsTrackingActive = false;
+          });
+          _logEvent('gps_stream_error');
+        },
+      );
+    } catch (_) {
+      setState(() {
+        gpsStatus = 'Could not start GPS';
+        gpsTrackingActive = false;
+      });
+      _logEvent('gps_start_failed');
+    }
+  }
+
   void _reachedPoint() {
+    final isLastStep = session.currentStep == currentRoute.points.length - 1;
+
+    if (isLastStep) {
+      _endRoute(completed: true);
+      return;
+    }
+
     setState(() {
       _logEvent('reached_point');
 
-      if (session.currentStep < currentRoute.points.length - 1) {
-        session.currentStep++;
-      } else {
-        _endRoute(completed: true);
+      session.currentStep++;
+
+      if (!gpsTrackingActive) {
+        final newPoint = currentRoute.points[session.currentStep];
+        userX = newPoint.x;
+        userY = newPoint.y;
       }
     });
   }
@@ -316,13 +563,24 @@ class _NavigationScreenState extends State<NavigationScreen> {
   }
 
   Future<void> _endRoute({required bool completed}) async {
+    await positionStream?.cancel();
+
     session.endTime = DateTime.now();
     session.completed = completed;
     _logEvent(completed ? 'route_completed' : 'route_terminated');
 
+    final sessionJson = session.toJson();
+    sessionJson['pathFollowed'] = pathFollowed;
+    sessionJson['gpsTrackingActive'] = gpsTrackingActive;
+    sessionJson['gpsStatusAtEnd'] = gpsStatus;
+    sessionJson['finalVirtualPosition'] = {
+      'x': userX,
+      'y': userY,
+    };
+
     final updatedLogs = [
       ...widget.allSessionLogs,
-      session.toJson(),
+      sessionJson,
     ];
 
     final prefs = await SharedPreferences.getInstance();
@@ -349,76 +607,202 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currentPoint = currentRoute.points[session.currentStep];
     final isLastStep = session.currentStep == currentRoute.points.length - 1;
+    final instruction = _currentInstruction();
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text('${currentRoute.id} — ${_conditionToText(currentCondition)}'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: CustomPaint(
-              painter: MapPainter(
-                route: currentRoute,
-                currentStep: session.currentStep,
+      backgroundColor: Colors.grey.shade100,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: CustomPaint(
+                painter: MapPainter(
+                  route: currentRoute,
+                  currentStep: session.currentStep,
+                  userX: userX,
+                  userY: userY,
+                ),
+                child: Container(),
               ),
-              child: Container(),
             ),
-          ),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            color: Colors.grey.shade100,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            Positioned(
+              top: 16,
+              left: 16,
+              right: 16,
+              child: _InstructionCard(
+                routeId: currentRoute.id,
+                condition: _conditionToText(currentCondition),
+                instruction: instruction,
+                stepText:
+                    'Step ${session.currentStep + 1} of ${currentRoute.points.length}',
+                gpsStatus: gpsStatus,
+              ),
+            ),
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: 16,
+              child: _ResearcherControls(
+                isLastStep: isLastStep,
+                onReachedPoint: _reachedPoint,
+                onMissedTurn: () => _markError('missed_turn'),
+                onWrongTurn: () => _markError('wrong_turn'),
+                onBacktracking: () => _markError('backtracking'),
+                onTerminate: () => _endRoute(completed: false),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InstructionCard extends StatelessWidget {
+  final String routeId;
+  final String condition;
+  final String instruction;
+  final String stepText;
+  final String gpsStatus;
+
+  const _InstructionCard({
+    required this.routeId,
+    required this.condition,
+    required this.instruction,
+    required this.stepText,
+    required this.gpsStatus,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 6,
+      color: Colors.white,
+      surfaceTintColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              width: 54,
+              height: 54,
+              decoration: BoxDecoration(
+                color: Colors.blue.shade600,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.navigation,
+                color: Colors.white,
+                size: 30,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    instruction,
+                    style: const TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$routeId • $condition • $stepText',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    gpsStatus,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ResearcherControls extends StatelessWidget {
+  final bool isLastStep;
+  final VoidCallback onReachedPoint;
+  final VoidCallback onMissedTurn;
+  final VoidCallback onWrongTurn;
+  final VoidCallback onBacktracking;
+  final VoidCallback onTerminate;
+
+  const _ResearcherControls({
+    required this.isLastStep,
+    required this.onReachedPoint,
+    required this.onMissedTurn,
+    required this.onWrongTurn,
+    required this.onBacktracking,
+    required this.onTerminate,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 6,
+      color: Colors.white,
+      surfaceTintColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            FilledButton(
+              onPressed: onReachedPoint,
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(46),
+              ),
+              child: Text(isLastStep ? 'Finish Route' : 'Reached Point'),
+            ),
+            const SizedBox(height: 8),
+            Row(
               children: [
-                Text(
-                  'Step ${session.currentStep + 1} of ${currentRoute.points.length}',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: onMissedTurn,
+                    child: const Text('Missed'),
+                  ),
                 ),
-                Text(
-                  isLastStep
-                      ? 'You reached the final target.'
-                      : 'Go to point (${currentPoint.x}, ${currentPoint.y})',
-                  style: const TextStyle(fontSize: 16),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: onWrongTurn,
+                    child: const Text('Wrong'),
+                  ),
                 ),
-                const SizedBox(height: 12),
-                ElevatedButton(
-                  onPressed: _reachedPoint,
-                  child: Text(isLastStep ? 'Finish Route' : 'Reached Point'),
-                ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => _markError('missed_turn'),
-                        child: const Text('Missed Turn'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => _markError('wrong_turn'),
-                        child: const Text('Wrong Turn'),
-                      ),
-                    ),
-                  ],
-                ),
-                OutlinedButton(
-                  onPressed: () => _markError('backtracking'),
-                  child: const Text('Backtracking'),
-                ),
-                TextButton(
-                  onPressed: () => _endRoute(completed: false),
-                  child: const Text('Terminate Route'),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: onBacktracking,
+                    child: const Text('Backtrack'),
+                  ),
                 ),
               ],
             ),
-          ),
-        ],
+            TextButton(
+              onPressed: onTerminate,
+              child: const Text('Terminate Route'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -457,41 +841,86 @@ class SummaryScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _copyJson(BuildContext context, String jsonText) async {
+    await Clipboard.setData(ClipboardData(text: jsonText));
+
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('JSON copied to clipboard')),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final prettyJson = const JsonEncoder.withIndent('  ').convert(allSessionLogs);
 
     return Scaffold(
+      backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
         title: const Text('Route Summary'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        elevation: 1,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              hasNextRoute ? 'Route saved. Ready for next route.' : 'Study complete.',
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            Text('Participant ID: $participantId'),
-            Text('Completed routes: ${allSessionLogs.length}'),
-            const SizedBox(height: 16),
-            Expanded(
-              child: SingleChildScrollView(
-                child: SelectableText(prettyJson),
+            Card(
+              color: Colors.white,
+              surfaceTintColor: Colors.white,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      hasNextRoute
+                          ? 'Route saved. Ready for next route.'
+                          : 'Study complete.',
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text('Participant ID: $participantId'),
+                    Text('Completed routes: ${allSessionLogs.length}'),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 12),
+            Expanded(
+              child: Card(
+                color: Colors.white,
+                surfaceTintColor: Colors.white,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: SingleChildScrollView(
+                    child: SelectableText(
+                      prettyJson,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton(
+              onPressed: () => _copyJson(context, prettyJson),
+              child: const Text('Copy JSON'),
+            ),
+            const SizedBox(height: 8),
             if (hasNextRoute)
-              ElevatedButton(
+              FilledButton(
                 onPressed: () => _startNextRoute(context),
                 child: const Text('Start Next Route'),
               )
             else
-              ElevatedButton(
+              FilledButton(
                 onPressed: () {
                   Navigator.pushAndRemoveUntil(
                     context,
@@ -511,18 +940,22 @@ class SummaryScreen extends StatelessWidget {
 class MapPainter extends CustomPainter {
   final StudyRoute route;
   final int currentStep;
+  final double userX;
+  final double userY;
 
   MapPainter({
     required this.route,
     required this.currentStep,
+    required this.userX,
+    required this.userY,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final padding = 32.0;
+    final padding = 38.0;
     final mapSize = size.shortestSide - padding * 2;
     final left = (size.width - mapSize) / 2;
-    final top = (size.height - mapSize) / 2;
+    final top = (size.height - mapSize) / 2 + 20;
 
     Offset toScreen(RoutePoint p) {
       final x = left + (p.x / 10.0) * mapSize;
@@ -530,65 +963,162 @@ class MapPainter extends CustomPainter {
       return Offset(x, y);
     }
 
-    final borderPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3
-      ..color = Colors.black;
+    final backgroundPaint = Paint()
+      ..style = PaintingStyle.fill
+      ..color = const Color(0xFFE8F1E5);
 
-    final gridPaint = Paint()
+    final mapRect = Rect.fromLTWH(left, top, mapSize, mapSize);
+    canvas.drawRect(mapRect, backgroundPaint);
+
+    _drawFakeMapBackground(canvas, mapRect);
+    _drawRoute(canvas, toScreen);
+    _drawMarkers(canvas, toScreen);
+    _drawUser(canvas, toScreen);
+  }
+
+  void _drawFakeMapBackground(Canvas canvas, Rect mapRect) {
+    final pathPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 18
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFFF7F3E8);
+
+    final pathBorderPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 22
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFFD7D1C2);
+
+    final faintLinePaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1
-      ..color = Colors.grey.shade300;
+      ..color = Colors.white.withOpacity(0.7);
 
-    final routePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 6
-      ..strokeCap = StrokeCap.round
-      ..color = Colors.blue;
-
-    final completedPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 6
-      ..strokeCap = StrokeCap.round
-      ..color = Colors.green;
-
-    final pointPaint = Paint()
+    final parkPaint = Paint()
       ..style = PaintingStyle.fill
-      ..color = Colors.blue;
+      ..color = const Color(0xFFD8EBCB);
 
-    final currentPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = Colors.red;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(mapRect, const Radius.circular(28)),
+      parkPaint,
+    );
 
-    final rect = Rect.fromLTWH(left, top, mapSize, mapSize);
-    canvas.drawRect(rect, borderPaint);
+    final p1 = Offset(mapRect.left + mapRect.width * 0.10, mapRect.top + mapRect.height * 0.25);
+    final p2 = Offset(mapRect.left + mapRect.width * 0.90, mapRect.top + mapRect.height * 0.25);
+    final p3 = Offset(mapRect.left + mapRect.width * 0.18, mapRect.top + mapRect.height * 0.70);
+    final p4 = Offset(mapRect.left + mapRect.width * 0.82, mapRect.top + mapRect.height * 0.70);
+    final p5 = Offset(mapRect.left + mapRect.width * 0.50, mapRect.top + mapRect.height * 0.08);
+    final p6 = Offset(mapRect.left + mapRect.width * 0.50, mapRect.top + mapRect.height * 0.92);
+
+    canvas.drawLine(p1, p2, pathBorderPaint);
+    canvas.drawLine(p3, p4, pathBorderPaint);
+    canvas.drawLine(p5, p6, pathBorderPaint);
+
+    canvas.drawLine(p1, p2, pathPaint);
+    canvas.drawLine(p3, p4, pathPaint);
+    canvas.drawLine(p5, p6, pathPaint);
 
     for (int i = 1; i < 10; i++) {
-      final x = left + (i / 10.0) * mapSize;
-      final y = top + (i / 10.0) * mapSize;
-      canvas.drawLine(Offset(x, top), Offset(x, top + mapSize), gridPaint);
-      canvas.drawLine(Offset(left, y), Offset(left + mapSize, y), gridPaint);
+      final x = mapRect.left + (i / 10.0) * mapRect.width;
+      final y = mapRect.top + (i / 10.0) * mapRect.height;
+      canvas.drawLine(Offset(x, mapRect.top), Offset(x, mapRect.bottom), faintLinePaint);
+      canvas.drawLine(Offset(mapRect.left, y), Offset(mapRect.right, y), faintLinePaint);
     }
+  }
+
+  void _drawRoute(Canvas canvas, Offset Function(RoutePoint p) toScreen) {
+    final routeShadowPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 14
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..color = Colors.blue.withOpacity(0.18);
+
+    final remainingRoutePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 8
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..color = Colors.blue.shade600;
+
+    final completedRoutePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 8
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..color = Colors.green.shade600;
 
     for (int i = 0; i < route.points.length - 1; i++) {
       final start = toScreen(route.points[i]);
       final end = toScreen(route.points[i + 1]);
 
+      canvas.drawLine(start, end, routeShadowPaint);
       canvas.drawLine(
         start,
         end,
-        i < currentStep ? completedPaint : routePaint,
+        i < currentStep ? completedRoutePaint : remainingRoutePaint,
       );
     }
+  }
+
+  void _drawMarkers(Canvas canvas, Offset Function(RoutePoint p) toScreen) {
+    final normalPointPaint = Paint()
+      ..style = PaintingStyle.fill
+      ..color = Colors.white;
+
+    final normalPointBorderPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..color = Colors.blue.shade600;
+
+    final currentPointPaint = Paint()
+      ..style = PaintingStyle.fill
+      ..color = Colors.orange.shade700;
+
+    final destinationPaint = Paint()
+      ..style = PaintingStyle.fill
+      ..color = Colors.red.shade600;
 
     for (int i = 0; i < route.points.length; i++) {
       final point = toScreen(route.points[i]);
-      canvas.drawCircle(point, 8, i == currentStep ? currentPaint : pointPaint);
+
+      if (i == route.points.length - 1) {
+        canvas.drawCircle(point, 11, destinationPaint);
+      } else if (i == currentStep) {
+        canvas.drawCircle(point, 10, currentPointPaint);
+      } else {
+        canvas.drawCircle(point, 8, normalPointPaint);
+        canvas.drawCircle(point, 8, normalPointBorderPaint);
+      }
     }
+  }
+
+  void _drawUser(Canvas canvas, Offset Function(RoutePoint p) toScreen) {
+    final userPoint = toScreen(RoutePoint(userX, userY));
+
+    final accuracyPaint = Paint()
+      ..style = PaintingStyle.fill
+      ..color = Colors.blue.withOpacity(0.18);
+
+    final userPaint = Paint()
+      ..style = PaintingStyle.fill
+      ..color = Colors.blue.shade700;
+
+    final userBorderPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4
+      ..color = Colors.white;
+
+    canvas.drawCircle(userPoint, 20, accuracyPaint);
+    canvas.drawCircle(userPoint, 10, userPaint);
+    canvas.drawCircle(userPoint, 10, userBorderPaint);
   }
 
   @override
   bool shouldRepaint(covariant MapPainter oldDelegate) {
-    return oldDelegate.currentStep != currentStep || oldDelegate.route != route;
+    return oldDelegate.currentStep != currentStep ||
+        oldDelegate.route != route ||
+        oldDelegate.userX != userX ||
+        oldDelegate.userY != userY;
   }
 }
