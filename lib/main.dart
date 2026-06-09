@@ -31,6 +31,71 @@ class NaMoApp extends StatelessWidget {
     );
   }
 }
+const routeB = StudyRoute(
+  id: 'Route B',
+  steps: [
+    RouteStep(
+      point: VirtualPoint(0, 0),
+      instruction: 'Start walking straight',
+      maneuver: 'straight',
+    ),
+    RouteStep(
+      point: VirtualPoint(40, 0),
+      instruction: 'Turn left soon',
+      maneuver: 'left',
+    ),
+    RouteStep(
+      point: VirtualPoint(40, 25),
+      instruction: 'Continue straight',
+      maneuver: 'straight',
+    ),
+    RouteStep(
+      point: VirtualPoint(80, 25),
+      instruction: 'Turn left soon',
+      maneuver: 'left',
+    ),
+    RouteStep(
+      point: VirtualPoint(80, 60),
+      instruction: 'Continue straight',
+      maneuver: 'straight',
+    ),
+    RouteStep(
+      point: VirtualPoint(115, 60),
+      instruction: 'Turn left soon',
+      maneuver: 'left',
+    ),
+    RouteStep(
+      point: VirtualPoint(115, 95),
+      instruction: 'Continue straight',
+      maneuver: 'straight',
+    ),
+    RouteStep(
+      point: VirtualPoint(70, 95),
+      instruction: 'Turn right soon',
+      maneuver: 'right',
+    ),
+    RouteStep(
+      point: VirtualPoint(70, 120),
+      instruction: 'Continue straight',
+      maneuver: 'straight',
+    ),
+    RouteStep(
+      point: VirtualPoint(25, 120),
+      instruction: 'Turn right soon',
+      maneuver: 'right',
+    ),
+    RouteStep(
+      point: VirtualPoint(25, 80),
+      instruction: 'Continue straight',
+      maneuver: 'straight',
+    ),
+    RouteStep(
+      point: VirtualPoint(0, 80),
+      instruction: 'Arrive at destination',
+      maneuver: 'arrive',
+    ),
+  ],
+);
 
 enum FeedbackCondition {
   visualAudio,
@@ -150,53 +215,57 @@ const routeA = StudyRoute(
       maneuver: 'straight',
     ),
     RouteStep(
-      point: VirtualPoint(0, 3),
+      point: VirtualPoint(0, 40),
       instruction: 'Turn right soon',
       maneuver: 'right',
     ),
     RouteStep(
-      point: VirtualPoint(3, 3),
+      point: VirtualPoint(25, 40),
       instruction: 'Continue straight',
       maneuver: 'straight',
     ),
     RouteStep(
-      point: VirtualPoint(3, 7),
+      point: VirtualPoint(25, 80),
       instruction: 'Turn right soon',
       maneuver: 'right',
     ),
     RouteStep(
-      point: VirtualPoint(7, 7),
-      instruction: 'Arrive at destination',
-      maneuver: 'arrive',
-    ),
-  ],
-);
-
-const routeB = StudyRoute(
-  id: 'Route B',
-  steps: [
-    RouteStep(
-      point: VirtualPoint(0, 0),
-      instruction: 'Start walking straight',
-      maneuver: 'straight',
-    ),
-    RouteStep(
-      point: VirtualPoint(3, 0),
-      instruction: 'Turn left soon',
-      maneuver: 'left',
-    ),
-    RouteStep(
-      point: VirtualPoint(3, 4),
+      point: VirtualPoint(55, 80),
       instruction: 'Continue straight',
       maneuver: 'straight',
     ),
     RouteStep(
-      point: VirtualPoint(7, 4),
+      point: VirtualPoint(55, 115),
+      instruction: 'Turn right soon',
+      maneuver: 'right',
+    ),
+    RouteStep(
+      point: VirtualPoint(90, 115),
+      instruction: 'Continue straight',
+      maneuver: 'straight',
+    ),
+    RouteStep(
+      point: VirtualPoint(90, 70),
       instruction: 'Turn left soon',
       maneuver: 'left',
     ),
     RouteStep(
-      point: VirtualPoint(7, 8),
+      point: VirtualPoint(115, 70),
+      instruction: 'Continue straight',
+      maneuver: 'straight',
+    ),
+    RouteStep(
+      point: VirtualPoint(115, 25),
+      instruction: 'Turn left soon',
+      maneuver: 'left',
+    ),
+    RouteStep(
+      point: VirtualPoint(85, 25),
+      instruction: 'Continue straight',
+      maneuver: 'straight',
+    ),
+    RouteStep(
+      point: VirtualPoint(85, 0),
       instruction: 'Arrive at destination',
       maneuver: 'arrive',
     ),
@@ -422,9 +491,9 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
 
   final List<Map<String, dynamic>> pathFollowed = [];
 
-  static const double waypointReachRadius = 1.8;
-  static const double offRouteThreshold = 2.8;
-
+  static const double waypointReachRadius = 4.0;
+  static const double offRouteThreshold = 8.0;
+  static const double studySizeMeters = 120.0;
   @override
   void initState() {
     super.initState();
@@ -581,7 +650,7 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
     _logEvent('study_area_created');
     _logEvent('gps_mode_started');
 
-    _mapController.move(start, 20);
+    _mapController.move(start, 18.5);
 
     _startGpsStream();
   }
@@ -609,7 +678,7 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
     _logEvent('simulated_mode_started');
     _logEvent('study_area_created_fallback');
 
-    _mapController.move(fallbackCenter, 20);
+    _mapController.move(fallbackCenter, 18.5);
   }
 
   void _startGpsStream() {
@@ -694,14 +763,14 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
     return VirtualPoint(x, y);
   }
 
-  List<LatLng> _createStudyBoundary(LatLng origin) {
-    return [
-      _offsetMetersToLatLng(origin, 0, 0),
-      _offsetMetersToLatLng(origin, 10, 0),
-      _offsetMetersToLatLng(origin, 10, 10),
-      _offsetMetersToLatLng(origin, 0, 10),
-    ];
-  }
+List<LatLng> _createStudyBoundary(LatLng origin) {
+  return [
+    _offsetMetersToLatLng(origin, 0, 0),
+    _offsetMetersToLatLng(origin, studySizeMeters, 0),
+    _offsetMetersToLatLng(origin, studySizeMeters, studySizeMeters),
+    _offsetMetersToLatLng(origin, 0, studySizeMeters),
+  ];
+}
 
   List<LatLng> _createFakeRoute(
     LatLng origin,
@@ -1056,7 +1125,7 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
             mapController: _mapController,
             options: MapOptions(
               initialCenter: center,
-              initialZoom: 18,
+              initialZoom: 18.5,
               minZoom: 3,
               maxZoom: 22,
             ),
@@ -1072,18 +1141,18 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
                       points: studyBoundary,
                       color: Colors.blue.withOpacity(0.10),
                       borderColor: Colors.blueAccent,
-                      borderStrokeWidth: 2,
+                      borderStrokeWidth: 4,
                     ),
                   ],
                 ),
               if (userPath.length >= 2)
                 PolylineLayer(
                   polylines: [
-                    Polyline(
-                      points: userPath,
-                      strokeWidth: 4,
-                      color: Colors.black.withOpacity(0.45),
-                    ),
+                  Polyline(
+                    points: fakeRoutePoints,
+                    strokeWidth: 12,
+                    color: Colors.blueAccent,
+                  ),
                   ],
                 ),
               if (fakeRoutePoints.length >= 2)
