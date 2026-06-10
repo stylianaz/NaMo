@@ -181,11 +181,18 @@ mixin CueEngine {
     return DateTime.now().difference(last).inMilliseconds / 1000.0 >= seconds;
   }
 
-  Future<bool> playCue(String m, void Function(String) log) async {
+  // Stamp lastAnyCueTime synchronously BEFORE the async playback so rapid
+  // GPS ticks cannot slip through the 900ms global lock.
+  bool _cueGate() {
     final now = DateTime.now();
     if (lastAnyCueTime != null &&
         now.difference(lastAnyCueTime!).inMilliseconds < NavConst.globalCueLockMs) return false;
     lastAnyCueTime = now;
+    return true;
+  }
+
+  Future<bool> playCue(String m, void Function(String) log) async {
+    if (!_cueGate()) return false;
     log('cue_played_$m');
     if (currentCondition == FeedbackCondition.visualAudio) { await _audioC(m); }
     else { await _hapticC(m); }
@@ -651,6 +658,9 @@ abstract class BaseMapState<T extends _BaseMapScreen> extends State<T> with CueE
     session = RouteSession(participantId:widget.participantId, routeId:currentRoute.id,
       condition:condText(_cond), startTime:DateTime.now(), events:[]);
     logEvent('screen_opened');
+    // Auto-start GPS on every route screen (including second/third routes).
+    // Both Normal and Experiment mode need a fresh subscription each time.
+    WidgetsBinding.instance.addPostFrameCallback((_) => startGps());
   }
 
   @override
@@ -701,7 +711,7 @@ abstract class BaseMapState<T extends _BaseMapScreen> extends State<T> with CueE
         'virtualX':userX,'virtualY':userY,'accuracy':acc,'heading':d.heading,'stepIndex':currentStep});
       gpsStatus='x=${userX.toStringAsFixed(1)}, y=${userY.toStringAsFixed(1)} ±${acc.toStringAsFixed(1)} m';
     });
-    if(realtimeEnabled) evalCues();
+    if(realtimeEnabled) evalCues(); // fire-and-forget async; gate prevents overlap
     onLocationUpdated();
   }
 
@@ -715,33 +725,62 @@ abstract class BaseMapState<T extends _BaseMapScreen> extends State<T> with CueE
     mapController.move(fallbackCenter,currentZoom);
   }
 
-  // ── Cue engine ────────────────────────────────────────────────────────────
-  void evalCues() {
+  // ── Cue engine ─────────────────────────────────────────────────────────────
+  // Called on every GPS update. async so each playCue is properly awaited.
+  // Accuracy guard is relaxed to 50 m so web/browser GPS is not silently
+  // blocked (browser accuracy is often 20-100 m even with a good fix).
+  Future<void> evalCues() async {
     if(!routeStarted)return;
     if(currentStep>=currentRoute.points.length-1)return;
-    if((currentAccuracyMeters??0)>NavConst.maxAccuracyForCues)return;
+    // Skip only if accuracy is truly terrible (> 50 m)
+    if((currentAccuracyMeters??0)>50.0)return;
+
     final user=VirtualPoint(userX,userY);
     final sS=currentRoute.points[currentStep]; final sE=currentRoute.points[currentStep+1];
     final proj=projectSeg(user,sS,sE); final dSeg=proj.distanceToSegment; final dNext=distVP(user,sE);
     final now=DateTime.now();
+
+    // 1. Off-route
     if(dSeg>NavConst.offRouteThreshold){
-      if(cooldownReady(lastWrongCueTime,NavConst.wrongCueCooldownSeconds)){lastWrongCueTime=now;logEvent('off_route_detected');playCue('wrong',logEvent);}; return;
+      if(cooldownReady(lastWrongCueTime,NavConst.wrongCueCooldownSeconds)){
+        lastWrongCueTime=now; logEvent('off_route_detected'); await playCue('wrong',logEvent);
+      }
+      return;
     }
+
+    // 2. Missed turn (shot past waypoint)
     if(proj.t>1.15&&dNext>NavConst.missedTurnDistance){
-      if(cooldownReady(lastWrongCueTime,NavConst.wrongCueCooldownSeconds)){lastWrongCueTime=now;logEvent('missed_turn_detected');playCue('wrong',logEvent);}; return;
+      if(cooldownReady(lastWrongCueTime,NavConst.wrongCueCooldownSeconds)){
+        lastWrongCueTime=now; logEvent('missed_turn_detected'); await playCue('wrong',logEvent);
+      }
+      return;
     }
+
+    // 3. Waypoint reached — advance step
     if(dNext<=NavConst.waypointReachRadius){
       setState((){currentStep++;session.currentStep=currentStep;lastTurnCueWaypointIndex=null;});
       logEvent('realtime_reached_waypoint');
-      if(currentStep>=currentRoute.points.length-1){playCue('arrive',logEvent);logEvent('realtime_arrived');}; return;
+      if(currentStep>=currentRoute.points.length-1){
+        await playCue('arrive',logEvent); logEvent('realtime_arrived');
+      }
+      return;
     }
+
+    // 4. Approaching a turn
     final nm=currentStep+1<currentRoute.steps.length?currentRoute.steps[currentStep+1].maneuver:'arrive';
     if(dNext<=NavConst.turnCueDistance&&(nm=='left'||nm=='right')){
       final tgt=currentStep+1;
       if(lastTurnCueWaypointIndex!=tgt||cooldownReady(lastTurnCueTime,NavConst.sameCueCooldownSeconds)){
-        lastTurnCueTime=now;lastTurnCueWaypointIndex=tgt;logEvent('realtime_turn_cue_$nm');playCue(nm,logEvent);}; return;
+        lastTurnCueTime=now; lastTurnCueWaypointIndex=tgt;
+        logEvent('realtime_turn_cue_$nm'); await playCue(nm,logEvent);
+      }
+      return;
     }
-    if(cooldownReady(lastStraightCueTime,NavConst.continueCueMinSeconds)){lastStraightCueTime=now;logEvent('realtime_straight_cue');playCue('straight',logEvent);}
+
+    // 5. Straight / continue — fires every 4 s while correctly on segment
+    if(cooldownReady(lastStraightCueTime,NavConst.continueCueMinSeconds)){
+      lastStraightCueTime=now; logEvent('realtime_straight_cue'); await playCue('straight',logEvent);
+    }
   }
 
   // ── Manual ────────────────────────────────────────────────────────────────
@@ -880,8 +919,6 @@ class ExperimentMapScreen extends _BaseMapScreen {
 class _ExpMapState extends BaseMapState<ExperimentMapScreen> {
   bool _peek=false; int _peekCount=0; double _peekMs=0; DateTime? _peekT;
   final List<Map<String,dynamic>> _glances=[];
-
-  @override void initState(){super.initState();WidgetsBinding.instance.addPostFrameCallback((_)=>startGps());}
 
   @override
   Widget nextScreenForMode({required String participantId, required List<StudyRoute> routeOrder,
