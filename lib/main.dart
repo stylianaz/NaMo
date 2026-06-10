@@ -688,55 +688,54 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
     }
 
     setState(() {
-      gpsStatus = 'Waiting for first GPS update… Keep this tab active.';
-    });
+    gpsStatus = kIsWeb
+        ? 'Waiting for browser GPS permission… Allow location access.'
+        : 'Waiting for first GPS update… Keep the app active.';    });
 
     await _waitForFirstLocationFromStream();
   }
 
-  Future<bool> _checkAndRequestLocationPermission() async {
-    try {
-      if (kIsWeb) {
-        await _locationService.changeSettings(
-          accuracy: LocationAccuracy.high,
-          interval: 1000,
-          distanceFilter: 1,
-        );
-        return true;
-      }
+ Future<bool> _checkAndRequestLocationPermission() async {
+  try {
+    // Web: do NOT call changeSettings().
+    // Browser location permission is handled by the browser prompt.
+    if (kIsWeb) {
+      return true;
+    }
 
-      bool serviceEnabled = await _locationService.serviceEnabled();
+    bool serviceEnabled = await _locationService.serviceEnabled();
+    if (!serviceEnabled) {
+      serviceEnabled = await _locationService.requestService();
       if (!serviceEnabled) {
-        serviceEnabled = await _locationService.requestService();
-        if (!serviceEnabled) {
-          _logEvent('gps_service_disabled');
-          return false;
-        }
-      }
-
-      PermissionStatus permission = await _locationService.hasPermission();
-      if (permission == PermissionStatus.denied) {
-        permission = await _locationService.requestPermission();
-      }
-      if (permission != PermissionStatus.granted &&
-          permission != PermissionStatus.grantedLimited) {
-        _logEvent('gps_permission_denied');
+        _logEvent('gps_service_disabled');
         return false;
       }
+    }
 
-      await _locationService.changeSettings(
-        accuracy: LocationAccuracy.high,
-        interval: 1000,
-        distanceFilter: 1,
-      );
-      return true;
-    } catch (e) {
-      debugPrint('LOCATION: permission check failed: $e');
-      _logEvent('gps_permission_check_failed');
+    PermissionStatus permission = await _locationService.hasPermission();
+    if (permission == PermissionStatus.denied) {
+      permission = await _locationService.requestPermission();
+    }
+
+    if (permission != PermissionStatus.granted &&
+        permission != PermissionStatus.grantedLimited) {
+      _logEvent('gps_permission_denied');
       return false;
     }
-  }
 
+    await _locationService.changeSettings(
+      accuracy: LocationAccuracy.high,
+      interval: 1000,
+      distanceFilter: 1,
+    );
+
+    return true;
+  } catch (e) {
+    debugPrint('LOCATION: permission check failed: $e');
+    _logEvent('gps_permission_check_failed');
+    return false;
+  }
+}
   Future<void> _waitForFirstLocationFromStream() async {
     await _locationSubscription?.cancel();
     bool firstReceived = false;
