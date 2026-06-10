@@ -4,11 +4,12 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:location/location.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -31,71 +32,6 @@ class NaMoApp extends StatelessWidget {
     );
   }
 }
-const routeB = StudyRoute(
-  id: 'Route B',
-  steps: [
-    RouteStep(
-      point: VirtualPoint(0, 0),
-      instruction: 'Start walking straight',
-      maneuver: 'straight',
-    ),
-    RouteStep(
-      point: VirtualPoint(40, 0),
-      instruction: 'Turn left soon',
-      maneuver: 'left',
-    ),
-    RouteStep(
-      point: VirtualPoint(40, 25),
-      instruction: 'Continue straight',
-      maneuver: 'straight',
-    ),
-    RouteStep(
-      point: VirtualPoint(80, 25),
-      instruction: 'Turn left soon',
-      maneuver: 'left',
-    ),
-    RouteStep(
-      point: VirtualPoint(80, 60),
-      instruction: 'Continue straight',
-      maneuver: 'straight',
-    ),
-    RouteStep(
-      point: VirtualPoint(115, 60),
-      instruction: 'Turn left soon',
-      maneuver: 'left',
-    ),
-    RouteStep(
-      point: VirtualPoint(115, 95),
-      instruction: 'Continue straight',
-      maneuver: 'straight',
-    ),
-    RouteStep(
-      point: VirtualPoint(70, 95),
-      instruction: 'Turn right soon',
-      maneuver: 'right',
-    ),
-    RouteStep(
-      point: VirtualPoint(70, 120),
-      instruction: 'Continue straight',
-      maneuver: 'straight',
-    ),
-    RouteStep(
-      point: VirtualPoint(25, 120),
-      instruction: 'Turn right soon',
-      maneuver: 'right',
-    ),
-    RouteStep(
-      point: VirtualPoint(25, 80),
-      instruction: 'Continue straight',
-      maneuver: 'straight',
-    ),
-    RouteStep(
-      point: VirtualPoint(0, 80),
-      instruction: 'Arrive at destination',
-      maneuver: 'arrive',
-    ),
-  ],
-);
 
 enum FeedbackCondition {
   visualAudio,
@@ -112,6 +48,18 @@ class VirtualPoint {
         'x': x,
         'y': y,
       };
+}
+
+class SegmentProjection {
+  final double t;
+  final double distanceToSegment;
+  final VirtualPoint closestPoint;
+
+  const SegmentProjection({
+    required this.t,
+    required this.distanceToSegment,
+    required this.closestPoint,
+  });
 }
 
 class RouteStep {
@@ -215,57 +163,188 @@ const routeA = StudyRoute(
       maneuver: 'straight',
     ),
     RouteStep(
-      point: VirtualPoint(0, 40),
+      point: VirtualPoint(0, 25),
       instruction: 'Turn right soon',
       maneuver: 'right',
     ),
     RouteStep(
-      point: VirtualPoint(25, 40),
-      instruction: 'Continue straight',
-      maneuver: 'straight',
+      point: VirtualPoint(25, 25),
+      instruction: 'Turn left soon',
+      maneuver: 'left',
     ),
     RouteStep(
-      point: VirtualPoint(25, 80),
+      point: VirtualPoint(25, 50),
       instruction: 'Turn right soon',
       maneuver: 'right',
+    ),
+    RouteStep(
+      point: VirtualPoint(55, 50),
+      instruction: 'Turn left soon',
+      maneuver: 'left',
     ),
     RouteStep(
       point: VirtualPoint(55, 80),
-      instruction: 'Continue straight',
-      maneuver: 'straight',
-    ),
-    RouteStep(
-      point: VirtualPoint(55, 115),
       instruction: 'Turn right soon',
       maneuver: 'right',
     ),
     RouteStep(
-      point: VirtualPoint(90, 115),
-      instruction: 'Continue straight',
-      maneuver: 'straight',
+      point: VirtualPoint(85, 80),
+      instruction: 'Turn right soon',
+      maneuver: 'right',
     ),
     RouteStep(
-      point: VirtualPoint(90, 70),
+      point: VirtualPoint(85, 55),
       instruction: 'Turn left soon',
       maneuver: 'left',
     ),
     RouteStep(
-      point: VirtualPoint(115, 70),
-      instruction: 'Continue straight',
-      maneuver: 'straight',
+      point: VirtualPoint(110, 55),
+      instruction: 'Turn right soon',
+      maneuver: 'right',
     ),
     RouteStep(
-      point: VirtualPoint(115, 25),
+      point: VirtualPoint(110, 30),
+      instruction: 'Turn right soon',
+      maneuver: 'right',
+    ),
+    RouteStep(
+      point: VirtualPoint(75, 30),
       instruction: 'Turn left soon',
       maneuver: 'left',
     ),
     RouteStep(
-      point: VirtualPoint(85, 25),
-      instruction: 'Continue straight',
+      point: VirtualPoint(75, 5),
+      instruction: 'Turn right soon',
+      maneuver: 'right',
+    ),
+    RouteStep(
+      point: VirtualPoint(45, 5),
+      instruction: 'Turn right soon',
+      maneuver: 'right',
+    ),
+    RouteStep(
+      point: VirtualPoint(45, 35),
+      instruction: 'Turn left soon',
+      maneuver: 'left',
+    ),
+    RouteStep(
+      point: VirtualPoint(15, 35),
+      instruction: 'Turn right soon',
+      maneuver: 'right',
+    ),
+    RouteStep(
+      point: VirtualPoint(15, 70),
+      instruction: 'Turn right soon',
+      maneuver: 'right',
+    ),
+    RouteStep(
+      point: VirtualPoint(40, 70),
+      instruction: 'Turn left soon',
+      maneuver: 'left',
+    ),
+    RouteStep(
+      point: VirtualPoint(40, 105),
+      instruction: 'Turn left soon',
+      maneuver: 'left',
+    ),
+    RouteStep(
+      point: VirtualPoint(0, 105),
+      instruction: 'Arrive at destination',
+      maneuver: 'arrive',
+    ),
+  ],
+);
+
+const routeB = StudyRoute(
+  id: 'Route B',
+  steps: [
+    RouteStep(
+      point: VirtualPoint(0, 0),
+      instruction: 'Start walking straight',
       maneuver: 'straight',
     ),
     RouteStep(
-      point: VirtualPoint(85, 0),
+      point: VirtualPoint(30, 0),
+      instruction: 'Turn left soon',
+      maneuver: 'left',
+    ),
+    RouteStep(
+      point: VirtualPoint(30, 30),
+      instruction: 'Turn right soon',
+      maneuver: 'right',
+    ),
+    RouteStep(
+      point: VirtualPoint(60, 30),
+      instruction: 'Turn left soon',
+      maneuver: 'left',
+    ),
+    RouteStep(
+      point: VirtualPoint(60, 65),
+      instruction: 'Turn left soon',
+      maneuver: 'left',
+    ),
+    RouteStep(
+      point: VirtualPoint(30, 65),
+      instruction: 'Turn right soon',
+      maneuver: 'right',
+    ),
+    RouteStep(
+      point: VirtualPoint(30, 95),
+      instruction: 'Turn right soon',
+      maneuver: 'right',
+    ),
+    RouteStep(
+      point: VirtualPoint(70, 95),
+      instruction: 'Turn right soon',
+      maneuver: 'right',
+    ),
+    RouteStep(
+      point: VirtualPoint(70, 70),
+      instruction: 'Turn left soon',
+      maneuver: 'left',
+    ),
+    RouteStep(
+      point: VirtualPoint(105, 70),
+      instruction: 'Turn right soon',
+      maneuver: 'right',
+    ),
+    RouteStep(
+      point: VirtualPoint(105, 35),
+      instruction: 'Turn right soon',
+      maneuver: 'right',
+    ),
+    RouteStep(
+      point: VirtualPoint(80, 35),
+      instruction: 'Turn left soon',
+      maneuver: 'left',
+    ),
+    RouteStep(
+      point: VirtualPoint(80, 10),
+      instruction: 'Turn right soon',
+      maneuver: 'right',
+    ),
+    RouteStep(
+      point: VirtualPoint(50, 10),
+      instruction: 'Turn right soon',
+      maneuver: 'right',
+    ),
+    RouteStep(
+      point: VirtualPoint(50, 45),
+      instruction: 'Turn left soon',
+      maneuver: 'left',
+    ),
+    RouteStep(
+      point: VirtualPoint(15, 45),
+      instruction: 'Turn right soon',
+      maneuver: 'right',
+    ),
+    RouteStep(
+      point: VirtualPoint(15, 85),
+      instruction: 'Turn right soon',
+      maneuver: 'right',
+    ),
+    RouteStep(
+      point: VirtualPoint(75, 85),
       instruction: 'Arrive at destination',
       maneuver: 'arrive',
     ),
@@ -457,8 +536,9 @@ class StudyMapScreen extends StatefulWidget {
 class _StudyMapScreenState extends State<StudyMapScreen> {
   final MapController _mapController = MapController();
   final AudioPlayer _audioPlayer = AudioPlayer();
+  final Location _locationService = Location();
 
-  StreamSubscription<Position>? _positionSubscription;
+  StreamSubscription<LocationData>? _locationSubscription;
 
   late StudyRoute currentRoute;
   late FeedbackCondition currentCondition;
@@ -468,6 +548,7 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
 
   LatLng? origin;
   LatLng? currentLocation;
+  LatLng? _mapCenter;
 
   List<LatLng> studyBoundary = [];
   List<LatLng> fakeRoutePoints = [];
@@ -476,6 +557,9 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
   double userX = 0.0;
   double userY = 0.0;
   double currentSpeedKmh = 0.0;
+  double? currentHeadingDegrees;
+  double? currentAccuracyMeters;
+  double _currentZoom = 19.5;
 
   int currentStep = 0;
 
@@ -483,17 +567,30 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
   bool gpsTrackingActive = false;
   bool simulatedMode = false;
   bool studyAreaCreated = false;
+  bool waitingForGps = false;
+  bool realtimeCuesEnabled = true;
 
   String gpsStatus = 'Stand at the start point, then set origin.';
 
   DateTime? lastCueTime;
-  DateTime? lastOffRouteEventTime;
+  DateTime? lastContinueCueTime;
+  DateTime? lastTurnCueTime;
+  DateTime? lastWrongCueTime;
+
+  int? lastTurnCueStepIndex;
 
   final List<Map<String, dynamic>> pathFollowed = [];
 
   static const double waypointReachRadius = 4.0;
   static const double offRouteThreshold = 8.0;
   static const double studySizeMeters = 120.0;
+
+  static const double turnCueDistance = 12.0;
+  static const double missedTurnDistance = 10.0;
+  static const double continueCueMinSeconds = 8.0;
+  static const double sameCueCooldownSeconds = 4.0;
+  static const double wrongCueCooldownSeconds = 3.0;
+
   @override
   void initState() {
     super.initState();
@@ -514,7 +611,7 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
 
   @override
   void dispose() {
-    _positionSubscription?.cancel();
+    _locationSubscription?.cancel();
     _audioPlayer.dispose();
     super.dispose();
   }
@@ -530,6 +627,7 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
 
   String _currentInstruction() {
     if (!routeStarted) {
+      if (waitingForGps) return 'Waiting for GPS';
       return 'Set study origin';
     }
 
@@ -541,7 +639,10 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
   }
 
   IconData _currentIcon() {
-    if (!routeStarted) return Icons.gps_fixed;
+    if (!routeStarted) {
+      if (waitingForGps) return Icons.gps_not_fixed;
+      return Icons.gps_fixed;
+    }
 
     if (currentStep >= currentRoute.steps.length) {
       return Icons.flag;
@@ -575,60 +676,160 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
 
   Future<void> _startRouteAndSetOrigin() async {
     setState(() {
-      gpsStatus = 'Trying GPS for 10 seconds...';
+      gpsStatus = 'Checking location permission...';
       routeStarted = false;
+      waitingForGps = true;
     });
 
-    final position = await _tryGetGpsPosition();
+    final canUseLocation = await _checkAndRequestLocationPermission();
 
-    if (position == null) {
-      _startSimulatedMode(
-        reason: 'GPS unavailable or timed out. Using simulated route mode.',
-      );
+    if (!canUseLocation) {
+      setState(() {
+        waitingForGps = false;
+        gpsStatus = 'Location permission denied or location service disabled.';
+      });
+
+      _logEvent('location_permission_or_service_failed');
       return;
     }
 
-    final start = LatLng(position.latitude, position.longitude);
+    setState(() {
+      gpsStatus = 'Waiting for first GPS update... Keep this tab active.';
+    });
 
-    _startGpsMode(start, position);
+    await _waitForFirstLocationFromStream();
   }
 
-  Future<Position?> _tryGetGpsPosition() async {
+  Future<bool> _checkAndRequestLocationPermission() async {
     try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (kIsWeb) {
+        debugPrint(
+          'LOCATION DEBUG: web mode detected. Skipping location package permission check.',
+        );
+
+        await _locationService.changeSettings(
+          accuracy: LocationAccuracy.high,
+          interval: 1000,
+          distanceFilter: 1,
+        );
+
+        return true;
+      }
+
+      bool serviceEnabled = await _locationService.serviceEnabled();
 
       if (!serviceEnabled) {
-        _logEvent('gps_service_disabled');
-        return null;
+        serviceEnabled = await _locationService.requestService();
+
+        if (!serviceEnabled) {
+          debugPrint('LOCATION DEBUG: location service disabled');
+          _logEvent('gps_service_disabled');
+          return false;
+        }
       }
 
-      LocationPermission permission = await Geolocator.checkPermission();
+      PermissionStatus permissionGranted = await _locationService.hasPermission();
 
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
+      debugPrint('LOCATION DEBUG: initial permission = $permissionGranted');
+
+      if (permissionGranted == PermissionStatus.denied) {
+        permissionGranted = await _locationService.requestPermission();
+
+        debugPrint('LOCATION DEBUG: requested permission = $permissionGranted');
       }
 
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
+      if (permissionGranted != PermissionStatus.granted &&
+          permissionGranted != PermissionStatus.grantedLimited) {
+        debugPrint('LOCATION DEBUG: permission not granted');
         _logEvent('gps_permission_denied');
-        return null;
+        return false;
       }
 
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 10),
+      await _locationService.changeSettings(
+        accuracy: LocationAccuracy.high,
+        interval: 1000,
+        distanceFilter: 1,
       );
 
-      return position;
-    } catch (_) {
-      _logEvent('gps_initial_position_failed');
-      return null;
+      return true;
+    } catch (error) {
+      debugPrint('LOCATION DEBUG: permission check failed: $error');
+      _logEvent('gps_permission_check_failed');
+      return false;
     }
   }
 
-  void _startGpsMode(LatLng start, Position initialPosition) {
+  Future<void> _waitForFirstLocationFromStream() async {
+    await _locationSubscription?.cancel();
+
+    bool firstLocationReceived = false;
+
+    _locationSubscription = _locationService.onLocationChanged.listen(
+      (LocationData locationData) {
+        debugPrint(
+          'LOCATION DEBUG: stream update '
+          'lat=${locationData.latitude}, '
+          'lng=${locationData.longitude}, '
+          'accuracy=${locationData.accuracy}, '
+          'speed=${locationData.speed}, '
+          'heading=${locationData.heading}',
+        );
+
+        if (locationData.latitude == null || locationData.longitude == null) {
+          if (!mounted) return;
+
+          setState(() {
+            gpsStatus = 'GPS update received, but latitude/longitude is null.';
+          });
+
+          return;
+        }
+
+        final start = LatLng(
+          locationData.latitude!,
+          locationData.longitude!,
+        );
+
+        if (!firstLocationReceived) {
+          firstLocationReceived = true;
+          _startGpsMode(start, locationData);
+        } else {
+          _handleLocationUpdate(locationData);
+        }
+      },
+      onError: (error) {
+        debugPrint('LOCATION DEBUG: stream error: $error');
+
+        if (!mounted) return;
+
+        setState(() {
+          waitingForGps = false;
+          gpsTrackingActive = false;
+          gpsStatus = 'GPS stream error: $error';
+        });
+
+        _logEvent('location_stream_error');
+      },
+    );
+
+    Future.delayed(const Duration(seconds: 30), () {
+      if (!mounted) return;
+      if (firstLocationReceived) return;
+
+      setState(() {
+        waitingForGps = false;
+        gpsStatus =
+            'Still waiting for GPS. Check browser permission or test on phone.';
+      });
+
+      _logEvent('gps_first_location_timeout_30s');
+    });
+  }
+
+  void _startGpsMode(LatLng start, LocationData initialLocation) {
     origin = start;
     currentLocation = start;
+    _mapCenter = start;
 
     studyBoundary = _createStudyBoundary(start);
     fakeRoutePoints = _createFakeRoute(start, currentRoute.points);
@@ -638,26 +839,88 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
       studyAreaCreated = true;
       gpsTrackingActive = true;
       simulatedMode = false;
+      waitingForGps = false;
       currentStep = 0;
       session.currentStep = 0;
       userX = 0.0;
       userY = 0.0;
-      currentSpeedKmh = initialPosition.speed * 3.6;
-      gpsStatus = 'GPS active. Origin saved as (0,0).';
+      currentSpeedKmh = (initialLocation.speed ?? 0.0) * 3.6;
+      currentHeadingDegrees = initialLocation.heading;
+      currentAccuracyMeters = initialLocation.accuracy;
+      userPath = [start];
+
+      pathFollowed.add({
+        'timestamp': DateTime.now().toIso8601String(),
+        'mode': 'gps_origin',
+        'lat': start.latitude,
+        'lng': start.longitude,
+        'virtualX': 0.0,
+        'virtualY': 0.0,
+        'speedKmh': currentSpeedKmh,
+        'accuracy': initialLocation.accuracy,
+        'heading': initialLocation.heading,
+        'stepIndex': currentStep,
+      });
+
+      gpsStatus =
+          'GPS active. Origin saved. Accuracy: ±${(initialLocation.accuracy ?? 0).toStringAsFixed(1)}m';
     });
 
     _logEvent('gps_origin_set');
     _logEvent('study_area_created');
-    _logEvent('gps_mode_started');
+    _logEvent('gps_mode_started_location_package');
 
-    _mapController.move(start, 18.5);
+    _currentZoom = 19.5;
+    _mapController.move(start, _currentZoom);
+  }
 
-    _startGpsStream();
+  void _handleLocationUpdate(LocationData locationData) {
+    if (origin == null) return;
+    if (locationData.latitude == null || locationData.longitude == null) return;
+
+    final pos = LatLng(locationData.latitude!, locationData.longitude!);
+    final virtual = _latLngToVirtual(origin!, pos);
+    final accuracy = locationData.accuracy ?? 0.0;
+    final heading = locationData.heading;
+
+    setState(() {
+      currentLocation = pos;
+      userX = virtual.x;
+      userY = virtual.y;
+      currentSpeedKmh = (locationData.speed ?? 0.0) * 3.6;
+      currentHeadingDegrees = heading;
+      currentAccuracyMeters = accuracy;
+      userPath.add(pos);
+
+      pathFollowed.add({
+        'timestamp': DateTime.now().toIso8601String(),
+        'mode': 'gps_location_package',
+        'lat': pos.latitude,
+        'lng': pos.longitude,
+        'virtualX': userX,
+        'virtualY': userY,
+        'speedKmh': currentSpeedKmh,
+        'accuracy': accuracy,
+        'heading': heading,
+        'stepIndex': currentStep,
+      });
+
+      gpsStatus =
+          'GPS: x=${userX.toStringAsFixed(1)}, y=${userY.toStringAsFixed(1)}, '
+          '±${accuracy.toStringAsFixed(1)}m, heading=${heading?.toStringAsFixed(0) ?? '-'}°';
+    });
+
+    if (realtimeCuesEnabled) {
+      _evaluateRealtimeNavigationCues();
+    }
   }
 
   void _startSimulatedMode({required String reason}) {
+    _locationSubscription?.cancel();
+
     origin = fallbackCenter;
     currentLocation = _offsetMetersToLatLng(fallbackCenter, 0, 0);
+    _mapCenter = currentLocation;
 
     studyBoundary = _createStudyBoundary(fallbackCenter);
     fakeRoutePoints = _createFakeRoute(fallbackCenter, currentRoute.points);
@@ -667,71 +930,23 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
       studyAreaCreated = true;
       gpsTrackingActive = false;
       simulatedMode = true;
+      waitingForGps = false;
       currentStep = 0;
       session.currentStep = 0;
       userX = 0.0;
       userY = 0.0;
       currentSpeedKmh = 0.0;
+      currentHeadingDegrees = null;
+      currentAccuracyMeters = null;
+      userPath = [currentLocation!];
       gpsStatus = reason;
     });
 
     _logEvent('simulated_mode_started');
     _logEvent('study_area_created_fallback');
 
-    _mapController.move(fallbackCenter, 18.5);
-  }
-
-  void _startGpsStream() {
-    const settings = LocationSettings(
-      accuracy: LocationAccuracy.high,
-      distanceFilter: 1,
-    );
-
-    _positionSubscription = Geolocator.getPositionStream(
-      locationSettings: settings,
-    ).listen(
-      (Position position) {
-        if (origin == null) return;
-
-        final pos = LatLng(position.latitude, position.longitude);
-        final virtual = _latLngToVirtual(origin!, pos);
-
-        setState(() {
-          currentLocation = pos;
-          userX = virtual.x;
-          userY = virtual.y;
-          currentSpeedKmh = position.speed * 3.6;
-          userPath.add(pos);
-
-          pathFollowed.add({
-            'timestamp': DateTime.now().toIso8601String(),
-            'mode': 'gps',
-            'lat': pos.latitude,
-            'lng': pos.longitude,
-            'virtualX': userX,
-            'virtualY': userY,
-            'speedKmh': currentSpeedKmh,
-            'accuracy': position.accuracy,
-            'stepIndex': currentStep,
-          });
-
-          gpsStatus =
-              'GPS: x=${userX.toStringAsFixed(1)}, y=${userY.toStringAsFixed(1)}, ±${position.accuracy.toStringAsFixed(1)}m';
-        });
-
-        _checkAutomaticRouteProgress();
-        _checkOffRoute();
-      },
-      onError: (_) {
-        setState(() {
-          gpsTrackingActive = false;
-          simulatedMode = true;
-          gpsStatus = 'GPS stream failed. Continuing in simulated mode.';
-        });
-
-        _logEvent('gps_stream_failed_switched_to_simulated');
-      },
-    );
+    _currentZoom = 19.5;
+    _mapController.move(fallbackCenter, _currentZoom);
   }
 
   LatLng _offsetMetersToLatLng(
@@ -763,14 +978,14 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
     return VirtualPoint(x, y);
   }
 
-List<LatLng> _createStudyBoundary(LatLng origin) {
-  return [
-    _offsetMetersToLatLng(origin, 0, 0),
-    _offsetMetersToLatLng(origin, studySizeMeters, 0),
-    _offsetMetersToLatLng(origin, studySizeMeters, studySizeMeters),
-    _offsetMetersToLatLng(origin, 0, studySizeMeters),
-  ];
-}
+  List<LatLng> _createStudyBoundary(LatLng origin) {
+    return [
+      _offsetMetersToLatLng(origin, 0, 0),
+      _offsetMetersToLatLng(origin, studySizeMeters, 0),
+      _offsetMetersToLatLng(origin, studySizeMeters, studySizeMeters),
+      _offsetMetersToLatLng(origin, 0, studySizeMeters),
+    ];
+  }
 
   List<LatLng> _createFakeRoute(
     LatLng origin,
@@ -783,7 +998,109 @@ List<LatLng> _createStudyBoundary(LatLng origin) {
 
   void _goToCurrentLocation() {
     if (currentLocation == null) return;
-    _mapController.move(currentLocation!, 20);
+
+    _mapCenter = currentLocation;
+    _currentZoom = 20.5;
+
+    _mapController.move(currentLocation!, _currentZoom);
+  }
+
+  void _zoomIn() {
+    final center = _mapCenter ?? currentLocation ?? origin ?? fallbackCenter;
+    final nextZoom = (_currentZoom + 0.75).clamp(3.0, 22.0).toDouble();
+
+    _currentZoom = nextZoom;
+    _mapCenter = center;
+
+    _mapController.move(center, nextZoom);
+  }
+
+  void _zoomOut() {
+    final center = _mapCenter ?? currentLocation ?? origin ?? fallbackCenter;
+    final nextZoom = (_currentZoom - 0.75).clamp(3.0, 22.0).toDouble();
+
+    _currentZoom = nextZoom;
+    _mapCenter = center;
+
+    _mapController.move(center, nextZoom);
+  }
+
+  void _recalculateStudyAreaFromCurrentLocation() {
+    if (currentLocation == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No current GPS point available yet.'),
+        ),
+      );
+      return;
+    }
+
+    final newOrigin = currentLocation!;
+
+    origin = newOrigin;
+    studyBoundary = _createStudyBoundary(newOrigin);
+    fakeRoutePoints = _createFakeRoute(newOrigin, currentRoute.points);
+
+    setState(() {
+      currentStep = 0;
+      session.currentStep = 0;
+      userX = 0.0;
+      userY = 0.0;
+      userPath = [newOrigin];
+      lastContinueCueTime = null;
+      lastTurnCueTime = null;
+      lastWrongCueTime = null;
+      lastTurnCueStepIndex = null;
+
+      gpsStatus =
+          'Study area recalculated. Current GPS point is now virtual (0,0).';
+    });
+
+    pathFollowed.add({
+      'timestamp': DateTime.now().toIso8601String(),
+      'mode': simulatedMode
+          ? 'simulated_recalculated_origin'
+          : 'gps_recalculated_origin',
+      'lat': newOrigin.latitude,
+      'lng': newOrigin.longitude,
+      'virtualX': 0.0,
+      'virtualY': 0.0,
+      'accuracy': currentAccuracyMeters,
+      'heading': currentHeadingDegrees,
+      'stepIndex': currentStep,
+    });
+
+    _logEvent('study_area_recalculated_from_current_location');
+
+    _mapCenter = newOrigin;
+    _currentZoom = 19.5;
+    _mapController.move(newOrigin, _currentZoom);
+  }
+
+  void _toggleRealtimeCues() {
+    setState(() {
+      realtimeCuesEnabled = !realtimeCuesEnabled;
+      lastContinueCueTime = null;
+      lastTurnCueTime = null;
+      lastWrongCueTime = null;
+      lastTurnCueStepIndex = null;
+    });
+
+    _logEvent(
+      realtimeCuesEnabled
+          ? 'realtime_cues_enabled'
+          : 'realtime_cues_disabled',
+    );
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          realtimeCuesEnabled
+              ? 'Real-time cues enabled'
+              : 'Real-time cues disabled. Manual controls still work.',
+        ),
+      ),
+    );
   }
 
   double _distanceBetweenVirtual(VirtualPoint a, VirtualPoint b) {
@@ -794,6 +1111,15 @@ List<LatLng> _createStudyBoundary(LatLng origin) {
   }
 
   double _distanceToSegment(
+    VirtualPoint p,
+    VirtualPoint a,
+    VirtualPoint b,
+  ) {
+    final projection = _projectPointToSegment(p, a, b);
+    return projection.distanceToSegment;
+  }
+
+  SegmentProjection _projectPointToSegment(
     VirtualPoint p,
     VirtualPoint a,
     VirtualPoint b,
@@ -809,73 +1135,127 @@ List<LatLng> _createStudyBoundary(LatLng origin) {
     final dy = by - ay;
 
     if (dx == 0 && dy == 0) {
-      return _distanceBetweenVirtual(p, a);
+      return SegmentProjection(
+        t: 0.0,
+        distanceToSegment: _distanceBetweenVirtual(p, a),
+        closestPoint: a,
+      );
     }
 
-    final t = (((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy))
-        .clamp(0.0, 1.0)
-        .toDouble();
+    final rawT = ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy);
+    final clampedT = rawT.clamp(0.0, 1.0).toDouble();
 
-    final closestX = ax + t * dx;
-    final closestY = ay + t * dy;
+    final closestX = ax + clampedT * dx;
+    final closestY = ay + clampedT * dy;
 
     final distanceX = px - closestX;
     final distanceY = py - closestY;
 
-    return math.sqrt(distanceX * distanceX + distanceY * distanceY);
+    return SegmentProjection(
+      t: rawT,
+      distanceToSegment: math.sqrt(distanceX * distanceX + distanceY * distanceY),
+      closestPoint: VirtualPoint(closestX, closestY),
+    );
   }
 
-  void _checkAutomaticRouteProgress() {
-    if (!routeStarted) return;
+  bool _isCueCooldownReady(DateTime? lastTime, double seconds) {
+    if (lastTime == null) return true;
 
-    if (currentStep >= currentRoute.points.length - 1) {
+    final elapsed = DateTime.now().difference(lastTime).inMilliseconds / 1000.0;
+    return elapsed >= seconds;
+  }
+
+  String _nextManeuver() {
+    if (currentStep + 1 >= currentRoute.steps.length) {
+      return 'arrive';
+    }
+
+    return currentRoute.steps[currentStep + 1].maneuver;
+  }
+
+  void _evaluateRealtimeNavigationCues() {
+    if (!routeStarted) return;
+    if (currentStep >= currentRoute.points.length - 1) return;
+
+    if (currentAccuracyMeters != null && currentAccuracyMeters! > 25) {
+      _logEvent('gps_accuracy_too_low_for_realtime_cues');
       return;
     }
 
     final user = VirtualPoint(userX, userY);
-    final nextPoint = currentRoute.points[currentStep + 1];
-    final distanceToNext = _distanceBetweenVirtual(user, nextPoint);
+    final segmentStart = currentRoute.points[currentStep];
+    final segmentEnd = currentRoute.points[currentStep + 1];
 
-    if (distanceToNext <= waypointReachRadius) {
-      setState(() {
-        currentStep++;
-        session.currentStep = currentStep;
-      });
-
-      _logEvent('auto_reached_point');
-      _playCue(currentRoute.steps[currentStep].maneuver);
-    }
-  }
-
-  bool _isUserOffRoute() {
-    if (!routeStarted) return false;
-
-    if (currentStep >= currentRoute.points.length - 1) {
-      return false;
-    }
-
-    final user = VirtualPoint(userX, userY);
-    final start = currentRoute.points[currentStep];
-    final end = currentRoute.points[currentStep + 1];
-
-    final distance = _distanceToSegment(user, start, end);
-
-    return distance > offRouteThreshold;
-  }
-
-  void _checkOffRoute() {
-    if (!_isUserOffRoute()) return;
+    final projection = _projectPointToSegment(user, segmentStart, segmentEnd);
+    final distanceToSegment = projection.distanceToSegment;
+    final distanceToNextPoint = _distanceBetweenVirtual(user, segmentEnd);
 
     final now = DateTime.now();
 
-    if (lastOffRouteEventTime != null &&
-        now.difference(lastOffRouteEventTime!).inSeconds < 4) {
+    if (distanceToSegment > offRouteThreshold) {
+      if (_isCueCooldownReady(lastWrongCueTime, wrongCueCooldownSeconds)) {
+        lastWrongCueTime = now;
+        _logEvent('wrong_path_detected');
+        _playCue('wrong');
+      }
       return;
     }
 
-    lastOffRouteEventTime = now;
-    _logEvent('off_route_detected');
-    _playCue('off_route');
+    final hasPassedWaypoint =
+        projection.t > 1.15 && distanceToNextPoint > missedTurnDistance;
+
+    if (hasPassedWaypoint) {
+      if (_isCueCooldownReady(lastWrongCueTime, wrongCueCooldownSeconds)) {
+        lastWrongCueTime = now;
+        _logEvent('missed_turn_detected');
+        _playCue('wrong');
+      }
+      return;
+    }
+
+    if (distanceToNextPoint <= waypointReachRadius) {
+      setState(() {
+        currentStep++;
+        session.currentStep = currentStep;
+        lastTurnCueStepIndex = null;
+      });
+
+      _logEvent('auto_reached_point');
+
+      if (currentStep >= currentRoute.points.length - 1) {
+        _playCue('arrive');
+      }
+
+      return;
+    }
+
+    final nextManeuver = _nextManeuver();
+
+    final approachingTurn =
+        distanceToNextPoint <= turnCueDistance &&
+        (nextManeuver == 'left' || nextManeuver == 'right');
+
+    if (approachingTurn) {
+      final isNewTurnCue = lastTurnCueStepIndex != currentStep + 1;
+
+      if (isNewTurnCue ||
+          _isCueCooldownReady(lastTurnCueTime, sameCueCooldownSeconds)) {
+        lastTurnCueTime = now;
+        lastTurnCueStepIndex = currentStep + 1;
+
+        _logEvent('realtime_turn_cue_$nextManeuver');
+        _playCue(nextManeuver);
+      }
+
+      return;
+    }
+
+    if (_isCueCooldownReady(lastContinueCueTime, continueCueMinSeconds)) {
+      lastContinueCueTime = now;
+
+      _logEvent('realtime_continue_straight_cue');
+      _playCue('straight');
+    }
   }
 
   Future<void> _playCue(String maneuver) async {
@@ -912,7 +1292,7 @@ List<LatLng> _createStudyBoundary(LatLng origin) {
         await _playBeep(frequency: 660, durationMs: 350);
         break;
 
-      case 'off_route':
+      case 'wrong':
         for (int i = 0; i < 3; i++) {
           await _playBeep(frequency: 440, durationMs: 100);
           await Future.delayed(const Duration(milliseconds: 80));
@@ -943,7 +1323,9 @@ List<LatLng> _createStudyBoundary(LatLng origin) {
         await HapticFeedback.mediumImpact();
         break;
 
-      case 'off_route':
+      case 'wrong':
+        await HapticFeedback.heavyImpact();
+        await Future.delayed(const Duration(milliseconds: 100));
         await HapticFeedback.heavyImpact();
         break;
 
@@ -1008,11 +1390,18 @@ List<LatLng> _createStudyBoundary(LatLng origin) {
     if (!routeStarted) return;
 
     _logEvent(type);
-    _playCue('off_route');
+    _playCue('wrong');
+  }
+
+  void _manualCue(String cue) {
+    if (!routeStarted) return;
+
+    _logEvent('manual_cue_$cue');
+    _playCue(cue);
   }
 
   Future<void> _endRoute({required bool completed}) async {
-    await _positionSubscription?.cancel();
+    await _locationSubscription?.cancel();
 
     session.endTime = DateTime.now();
     session.completed = completed;
@@ -1034,10 +1423,13 @@ List<LatLng> _createStudyBoundary(LatLng origin) {
     sessionJson['pathFollowed'] = pathFollowed;
     sessionJson['gpsTrackingActive'] = gpsTrackingActive;
     sessionJson['gpsStatusAtEnd'] = gpsStatus;
+    sessionJson['finalAccuracyMeters'] = currentAccuracyMeters;
+    sessionJson['finalHeadingDegrees'] = currentHeadingDegrees;
     sessionJson['finalVirtualPosition'] = {
       'x': userX,
       'y': userY,
     };
+    sessionJson['realtimeCuesEnabledAtEnd'] = realtimeCuesEnabled;
 
     final updatedLogs = [
       ...widget.allSessionLogs,
@@ -1075,12 +1467,11 @@ List<LatLng> _createStudyBoundary(LatLng origin) {
       if (currentLocation != null)
         Marker(
           point: currentLocation!,
-          width: 70,
-          height: 70,
-          child: const Icon(
-            Icons.my_location,
-            color: Colors.blue,
-            size: 32,
+          width: 72,
+          height: 72,
+          child: _UserLocationMarker(
+            headingDegrees: currentHeadingDegrees,
+            isGpsActive: gpsTrackingActive && !simulatedMode,
           ),
         ),
       if (fakeRoutePoints.isNotEmpty)
@@ -1125,9 +1516,16 @@ List<LatLng> _createStudyBoundary(LatLng origin) {
             mapController: _mapController,
             options: MapOptions(
               initialCenter: center,
-              initialZoom: 18.5,
+              initialZoom: _currentZoom,
               minZoom: 3,
               maxZoom: 22,
+              interactionOptions: const InteractionOptions(
+                flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+              ),
+              onMapEvent: (event) {
+                _mapCenter = event.camera.center;
+                _currentZoom = event.camera.zoom;
+              },
             ),
             children: [
               TileLayer(
@@ -1145,23 +1543,23 @@ List<LatLng> _createStudyBoundary(LatLng origin) {
                     ),
                   ],
                 ),
-              if (userPath.length >= 2)
-                PolylineLayer(
-                  polylines: [
-                  Polyline(
-                    points: fakeRoutePoints,
-                    strokeWidth: 12,
-                    color: Colors.blueAccent,
-                  ),
-                  ],
-                ),
               if (fakeRoutePoints.length >= 2)
                 PolylineLayer(
                   polylines: [
                     Polyline(
                       points: fakeRoutePoints,
-                      strokeWidth: 8,
-                      color: Colors.blueAccent,
+                      strokeWidth: 7,
+                      color: Colors.black,
+                    ),
+                  ],
+                ),
+              if (userPath.length >= 2)
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: userPath,
+                      strokeWidth: 4,
+                      color: Colors.blue,
                     ),
                   ],
                 ),
@@ -1182,6 +1580,16 @@ List<LatLng> _createStudyBoundary(LatLng origin) {
               stepText: 'Step ${currentStep + 1} of ${currentRoute.steps.length}',
               gpsStatus: gpsStatus,
               icon: _currentIcon(),
+              realtimeCuesEnabled: realtimeCuesEnabled,
+            ),
+          ),
+          Positioned(
+            top: 190,
+            right: 16,
+            child: _MapControlButtons(
+              onZoomIn: _zoomIn,
+              onZoomOut: _zoomOut,
+              onRecalculateArea: _recalculateStudyAreaFromCurrentLocation,
             ),
           ),
           if (!routeStarted)
@@ -1198,28 +1606,40 @@ List<LatLng> _createStudyBoundary(LatLng origin) {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
-                        Icons.gps_fixed,
+                      Icon(
+                        waitingForGps ? Icons.gps_not_fixed : Icons.gps_fixed,
                         size: 42,
                         color: Colors.blue,
                       ),
                       const SizedBox(height: 12),
-                      const Text(
-                        'Set study origin',
-                        style: TextStyle(
+                      Text(
+                        waitingForGps ? 'Waiting for GPS' : 'Set study origin',
+                        style: const TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       const SizedBox(height: 8),
-                      const Text(
-                        'Stand at the physical start point.\nThe app will try GPS first. If GPS fails, it will use simulated mode.',
+                      Text(
+                        waitingForGps
+                            ? 'The app is waiting for the first valid location update.\nCheck browser permission or test on phone.'
+                            : 'Stand at the physical start point.\nThe app will use the first valid GPS update as virtual point (0,0).',
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 16),
                       FilledButton(
-                        onPressed: _startRouteAndSetOrigin,
+                        onPressed:
+                            waitingForGps ? null : _startRouteAndSetOrigin,
                         child: const Text('Start Route and Set Origin'),
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton(
+                        onPressed: () {
+                          _startSimulatedMode(
+                            reason: 'Simulated route mode selected manually.',
+                          );
+                        },
+                        child: const Text('Use Simulated Mode'),
                       ),
                     ],
                   ),
@@ -1235,21 +1655,130 @@ List<LatLng> _createStudyBoundary(LatLng origin) {
                 isLastStep: currentStep >= currentRoute.points.length - 1,
                 speedText: simulatedMode
                     ? 'Simulated mode'
-                    : '${currentSpeedKmh.toStringAsFixed(1)} km/h',
+                    : '${currentSpeedKmh.toStringAsFixed(1)} km/h'
+                        '${currentAccuracyMeters == null ? '' : ' • ±${currentAccuracyMeters!.toStringAsFixed(1)}m'}',
+                realtimeCuesEnabled: realtimeCuesEnabled,
+                onToggleRealtimeCues: _toggleRealtimeCues,
                 onReachedPoint: _manualReachedPoint,
                 onMissedTurn: () => _markError('missed_turn'),
                 onWrongTurn: () => _markError('wrong_turn'),
-                onBacktracking: () => _markError('backtracking'),
+                onCueStraight: () => _manualCue('straight'),
+                onCueLeft: () => _manualCue('left'),
+                onCueRight: () => _manualCue('right'),
+                onCueWrong: () => _manualCue('wrong'),
                 onTerminate: () => _endRoute(completed: false),
                 onGoToLocation: _goToCurrentLocation,
                 onTestCue: () {
                   final maneuver = currentRoute.steps[currentStep].maneuver;
-                  _playCue(maneuver);
+                  _manualCue(maneuver);
                 },
               ),
             ),
         ],
       ),
+    );
+  }
+}
+
+class _MapControlButtons extends StatelessWidget {
+  final VoidCallback onZoomIn;
+  final VoidCallback onZoomOut;
+  final VoidCallback onRecalculateArea;
+
+  const _MapControlButtons({
+    required this.onZoomIn,
+    required this.onZoomOut,
+    required this.onRecalculateArea,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 6,
+      color: Colors.white,
+      surfaceTintColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: 'Zoom in',
+            onPressed: onZoomIn,
+            icon: const Icon(Icons.add),
+          ),
+          const Divider(height: 1),
+          IconButton(
+            tooltip: 'Zoom out',
+            onPressed: onZoomOut,
+            icon: const Icon(Icons.remove),
+          ),
+          const Divider(height: 1),
+          IconButton(
+            tooltip: 'Recalculate area from current GPS point',
+            onPressed: onRecalculateArea,
+            icon: const Icon(Icons.gps_fixed),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _UserLocationMarker extends StatelessWidget {
+  final double? headingDegrees;
+  final bool isGpsActive;
+
+  const _UserLocationMarker({
+    required this.headingDegrees,
+    required this.isGpsActive,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final rotationRadians = ((headingDegrees ?? 0.0) * math.pi) / 180.0;
+
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: Colors.blue.withOpacity(0.18),
+            shape: BoxShape.circle,
+          ),
+        ),
+        Container(
+          width: 24,
+          height: 24,
+          decoration: BoxDecoration(
+            color: isGpsActive ? Colors.blue : Colors.grey,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 3),
+            boxShadow: const [
+              BoxShadow(
+                blurRadius: 8,
+                spreadRadius: 1,
+                color: Colors.black26,
+              ),
+            ],
+          ),
+        ),
+        if (headingDegrees != null)
+          Transform.rotate(
+            angle: rotationRadians,
+            child: const Padding(
+              padding: EdgeInsets.only(bottom: 38),
+              child: Icon(
+                Icons.navigation,
+                color: Colors.blue,
+                size: 26,
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -1261,6 +1790,7 @@ class _InstructionCard extends StatelessWidget {
   final String stepText;
   final String gpsStatus;
   final IconData icon;
+  final bool realtimeCuesEnabled;
 
   const _InstructionCard({
     required this.instruction,
@@ -1269,10 +1799,14 @@ class _InstructionCard extends StatelessWidget {
     required this.stepText,
     required this.gpsStatus,
     required this.icon,
+    required this.realtimeCuesEnabled,
   });
 
   @override
   Widget build(BuildContext context) {
+    final realtimeText =
+        realtimeCuesEnabled ? 'Realtime cues: ON' : 'Realtime cues: OFF';
+
     return Card(
       elevation: 8,
       color: Colors.white,
@@ -1286,7 +1820,7 @@ class _InstructionCard extends StatelessWidget {
               width: 54,
               height: 54,
               decoration: BoxDecoration(
-                color: Colors.blue.shade600,
+                color: realtimeCuesEnabled ? Colors.blue.shade600 : Colors.grey,
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -1317,6 +1851,17 @@ class _InstructionCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   Text(
+                    realtimeText,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: realtimeCuesEnabled
+                          ? Colors.green.shade700
+                          : Colors.red.shade700,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
                     gpsStatus,
                     style: TextStyle(
                       fontSize: 12,
@@ -1336,10 +1881,15 @@ class _InstructionCard extends StatelessWidget {
 class _ResearcherControls extends StatelessWidget {
   final bool isLastStep;
   final String speedText;
+  final bool realtimeCuesEnabled;
+  final VoidCallback onToggleRealtimeCues;
   final VoidCallback onReachedPoint;
   final VoidCallback onMissedTurn;
   final VoidCallback onWrongTurn;
-  final VoidCallback onBacktracking;
+  final VoidCallback onCueStraight;
+  final VoidCallback onCueLeft;
+  final VoidCallback onCueRight;
+  final VoidCallback onCueWrong;
   final VoidCallback onTerminate;
   final VoidCallback onGoToLocation;
   final VoidCallback onTestCue;
@@ -1347,10 +1897,15 @@ class _ResearcherControls extends StatelessWidget {
   const _ResearcherControls({
     required this.isLastStep,
     required this.speedText,
+    required this.realtimeCuesEnabled,
+    required this.onToggleRealtimeCues,
     required this.onReachedPoint,
     required this.onMissedTurn,
     required this.onWrongTurn,
-    required this.onBacktracking,
+    required this.onCueStraight,
+    required this.onCueLeft,
+    required this.onCueRight,
+    required this.onCueWrong,
     required this.onTerminate,
     required this.onGoToLocation,
     required this.onTestCue,
@@ -1377,6 +1932,20 @@ class _ResearcherControls extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             FilledButton(
+              onPressed: onToggleRealtimeCues,
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(42),
+                backgroundColor:
+                    realtimeCuesEnabled ? Colors.green : Colors.red,
+              ),
+              child: Text(
+                realtimeCuesEnabled
+                    ? 'Disable Real-Time Cues'
+                    : 'Enable Real-Time Cues',
+              ),
+            ),
+            const SizedBox(height: 8),
+            FilledButton(
               onPressed: onReachedPoint,
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(46),
@@ -1399,11 +1968,36 @@ class _ResearcherControls extends StatelessWidget {
                     child: const Text('Wrong'),
                   ),
                 ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: onCueStraight,
+                    child: const Text('Straight'),
+                  ),
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: onBacktracking,
-                    child: const Text('Backtrack'),
+                    onPressed: onCueLeft,
+                    child: const Text('Left'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: onCueRight,
+                    child: const Text('Right'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: onCueWrong,
+                    child: const Text('Wrong Cue'),
                   ),
                 ),
               ],
@@ -1419,7 +2013,7 @@ class _ResearcherControls extends StatelessWidget {
                 Expanded(
                   child: TextButton(
                     onPressed: onTestCue,
-                    child: const Text('Test Cue'),
+                    child: const Text('Test Current'),
                   ),
                 ),
                 Expanded(
@@ -1482,7 +2076,8 @@ class SummaryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final prettyJson = const JsonEncoder.withIndent('  ').convert(allSessionLogs);
+    final prettyJson =
+        const JsonEncoder.withIndent('  ').convert(allSessionLogs);
 
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
