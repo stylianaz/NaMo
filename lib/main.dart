@@ -33,6 +33,10 @@ class NaMoApp extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Enums and data classes
+// ---------------------------------------------------------------------------
+
 enum FeedbackCondition {
   visualAudio,
   visualHaptic,
@@ -44,10 +48,7 @@ class VirtualPoint {
 
   const VirtualPoint(this.x, this.y);
 
-  Map<String, dynamic> toJson() => {
-        'x': x,
-        'y': y,
-      };
+  Map<String, dynamic> toJson() => {'x': x, 'y': y};
 }
 
 class SegmentProjection {
@@ -84,16 +85,13 @@ class StudyRoute {
   final String id;
   final List<RouteStep> steps;
 
-  const StudyRoute({
-    required this.id,
-    required this.steps,
-  });
+  const StudyRoute({required this.id, required this.steps});
 
-  List<VirtualPoint> get points => steps.map((step) => step.point).toList();
+  List<VirtualPoint> get points => steps.map((s) => s.point).toList();
 
   Map<String, dynamic> toJson() => {
         'id': id,
-        'steps': steps.map((step) => step.toJson()).toList(),
+        'steps': steps.map((s) => s.toJson()).toList(),
       };
 }
 
@@ -150,105 +148,102 @@ class RouteSession {
         'completionTimeSeconds': completionTimeSeconds,
         'completed': completed,
         'currentStep': currentStep,
-        'events': events.map((event) => event.toJson()).toList(),
+        'events': events.map((e) => e.toJson()).toList(),
       };
 }
+
+// ---------------------------------------------------------------------------
+// Routes
+// Coordinates are virtual metres east (x) and north (y) from origin (0,0).
+// Segments are intentionally varied with realistic street-block proportions
+// (~15–40 m per leg), avoiding pure straight lines.
+// ---------------------------------------------------------------------------
 
 const routeA = StudyRoute(
   id: 'Route A',
   steps: [
     RouteStep(
       point: VirtualPoint(0, 0),
-      instruction: 'Start walking straight',
+      instruction: 'Start – walk straight ahead',
       maneuver: 'straight',
     ),
     RouteStep(
-      point: VirtualPoint(0, 25),
-      instruction: 'Turn right soon',
+      point: VirtualPoint(0, 35),
+      instruction: 'Turn right',
       maneuver: 'right',
     ),
     RouteStep(
-      point: VirtualPoint(25, 25),
-      instruction: 'Turn left soon',
+      point: VirtualPoint(30, 35),
+      instruction: 'Turn left',
       maneuver: 'left',
     ),
     RouteStep(
-      point: VirtualPoint(25, 50),
-      instruction: 'Turn right soon',
+      point: VirtualPoint(30, 60),
+      instruction: 'Turn right',
       maneuver: 'right',
     ),
     RouteStep(
-      point: VirtualPoint(55, 50),
-      instruction: 'Turn left soon',
+      point: VirtualPoint(55, 60),
+      instruction: 'Turn left',
       maneuver: 'left',
     ),
     RouteStep(
-      point: VirtualPoint(55, 80),
-      instruction: 'Turn right soon',
+      point: VirtualPoint(55, 85),
+      instruction: 'Turn right',
       maneuver: 'right',
     ),
     RouteStep(
-      point: VirtualPoint(85, 80),
-      instruction: 'Turn right soon',
-      maneuver: 'right',
-    ),
-    RouteStep(
-      point: VirtualPoint(85, 55),
-      instruction: 'Turn left soon',
+      point: VirtualPoint(80, 85),
+      instruction: 'Turn left',
       maneuver: 'left',
     ),
     RouteStep(
-      point: VirtualPoint(110, 55),
-      instruction: 'Turn right soon',
+      point: VirtualPoint(80, 60),
+      instruction: 'Turn right',
       maneuver: 'right',
     ),
     RouteStep(
-      point: VirtualPoint(110, 30),
-      instruction: 'Turn right soon',
-      maneuver: 'right',
-    ),
-    RouteStep(
-      point: VirtualPoint(75, 30),
-      instruction: 'Turn left soon',
+      point: VirtualPoint(105, 60),
+      instruction: 'Turn left',
       maneuver: 'left',
     ),
     RouteStep(
-      point: VirtualPoint(75, 5),
-      instruction: 'Turn right soon',
+      point: VirtualPoint(105, 35),
+      instruction: 'Turn right',
       maneuver: 'right',
     ),
     RouteStep(
-      point: VirtualPoint(45, 5),
-      instruction: 'Turn right soon',
-      maneuver: 'right',
-    ),
-    RouteStep(
-      point: VirtualPoint(45, 35),
-      instruction: 'Turn left soon',
+      point: VirtualPoint(70, 35),
+      instruction: 'Turn left',
       maneuver: 'left',
     ),
     RouteStep(
-      point: VirtualPoint(15, 35),
-      instruction: 'Turn right soon',
+      point: VirtualPoint(70, 10),
+      instruction: 'Turn right',
+      maneuver: 'right',
+    ),
+    RouteStep(
+      point: VirtualPoint(40, 10),
+      instruction: 'Turn left',
+      maneuver: 'left',
+    ),
+    RouteStep(
+      point: VirtualPoint(40, 40),
+      instruction: 'Turn right',
+      maneuver: 'right',
+    ),
+    RouteStep(
+      point: VirtualPoint(15, 40),
+      instruction: 'Turn right',
       maneuver: 'right',
     ),
     RouteStep(
       point: VirtualPoint(15, 70),
-      instruction: 'Turn right soon',
-      maneuver: 'right',
-    ),
-    RouteStep(
-      point: VirtualPoint(40, 70),
-      instruction: 'Turn left soon',
+      instruction: 'Turn left',
       maneuver: 'left',
     ),
     RouteStep(
-      point: VirtualPoint(40, 105),
-      instruction: 'Turn left soon',
-      maneuver: 'left',
-    ),
-    RouteStep(
-      point: VirtualPoint(0, 105),
+      point: VirtualPoint(0, 70),
       instruction: 'Arrive at destination',
       maneuver: 'arrive',
     ),
@@ -260,96 +255,95 @@ const routeB = StudyRoute(
   steps: [
     RouteStep(
       point: VirtualPoint(0, 0),
-      instruction: 'Start walking straight',
+      instruction: 'Start – walk straight ahead',
       maneuver: 'straight',
     ),
     RouteStep(
       point: VirtualPoint(30, 0),
-      instruction: 'Turn left soon',
+      instruction: 'Turn left',
       maneuver: 'left',
     ),
     RouteStep(
       point: VirtualPoint(30, 30),
-      instruction: 'Turn right soon',
+      instruction: 'Turn right',
       maneuver: 'right',
     ),
     RouteStep(
       point: VirtualPoint(60, 30),
-      instruction: 'Turn left soon',
+      instruction: 'Turn left',
       maneuver: 'left',
     ),
     RouteStep(
-      point: VirtualPoint(60, 65),
-      instruction: 'Turn left soon',
+      point: VirtualPoint(60, 60),
+      instruction: 'Turn right',
+      maneuver: 'right',
+    ),
+    RouteStep(
+      point: VirtualPoint(90, 60),
+      instruction: 'Turn left',
       maneuver: 'left',
     ),
     RouteStep(
-      point: VirtualPoint(30, 65),
-      instruction: 'Turn right soon',
+      point: VirtualPoint(90, 85),
+      instruction: 'Turn right',
       maneuver: 'right',
     ),
     RouteStep(
-      point: VirtualPoint(30, 95),
-      instruction: 'Turn right soon',
-      maneuver: 'right',
-    ),
-    RouteStep(
-      point: VirtualPoint(70, 95),
-      instruction: 'Turn right soon',
-      maneuver: 'right',
-    ),
-    RouteStep(
-      point: VirtualPoint(70, 70),
-      instruction: 'Turn left soon',
+      point: VirtualPoint(60, 85),
+      instruction: 'Turn left',
       maneuver: 'left',
     ),
     RouteStep(
-      point: VirtualPoint(105, 70),
-      instruction: 'Turn right soon',
+      point: VirtualPoint(60, 110),
+      instruction: 'Turn right',
       maneuver: 'right',
     ),
     RouteStep(
-      point: VirtualPoint(105, 35),
-      instruction: 'Turn right soon',
-      maneuver: 'right',
-    ),
-    RouteStep(
-      point: VirtualPoint(80, 35),
-      instruction: 'Turn left soon',
+      point: VirtualPoint(90, 110),
+      instruction: 'Turn left',
       maneuver: 'left',
     ),
     RouteStep(
-      point: VirtualPoint(80, 10),
-      instruction: 'Turn right soon',
+      point: VirtualPoint(90, 80),
+      instruction: 'Turn right',
       maneuver: 'right',
     ),
     RouteStep(
-      point: VirtualPoint(50, 10),
-      instruction: 'Turn right soon',
-      maneuver: 'right',
-    ),
-    RouteStep(
-      point: VirtualPoint(50, 45),
-      instruction: 'Turn left soon',
+      point: VirtualPoint(110, 80),
+      instruction: 'Turn left',
       maneuver: 'left',
     ),
     RouteStep(
-      point: VirtualPoint(15, 45),
-      instruction: 'Turn right soon',
+      point: VirtualPoint(110, 50),
+      instruction: 'Turn right',
       maneuver: 'right',
     ),
     RouteStep(
-      point: VirtualPoint(15, 85),
-      instruction: 'Turn right soon',
+      point: VirtualPoint(80, 50),
+      instruction: 'Turn left',
+      maneuver: 'left',
+    ),
+    RouteStep(
+      point: VirtualPoint(80, 20),
+      instruction: 'Turn right',
       maneuver: 'right',
     ),
     RouteStep(
-      point: VirtualPoint(75, 85),
+      point: VirtualPoint(50, 20),
+      instruction: 'Turn left',
+      maneuver: 'left',
+    ),
+    RouteStep(
+      point: VirtualPoint(50, 0),
       instruction: 'Arrive at destination',
       maneuver: 'arrive',
     ),
   ],
 );
+
+// ---------------------------------------------------------------------------
+// Home screen
+// ---------------------------------------------------------------------------
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -380,8 +374,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _startStudy() {
-    final routeOrder = selectedOrder == 0 ? [routeA, routeB] : [routeB, routeA];
-
+    final routeOrder =
+        selectedOrder == 0 ? [routeA, routeB] : [routeB, routeA];
     final conditionOrder = selectedOrder == 0
         ? [FeedbackCondition.visualAudio, FeedbackCondition.visualHaptic]
         : [FeedbackCondition.visualHaptic, FeedbackCondition.visualAudio];
@@ -404,7 +398,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final routeOrderText =
         selectedOrder == 0 ? 'Route A → Route B' : 'Route B → Route A';
-
     final conditionOrderText = selectedOrder == 0
         ? 'Visual + Audio → Visual + Haptic'
         : 'Visual + Haptic → Visual + Audio';
@@ -472,20 +465,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         labelText: 'Study order',
                       ),
                       items: const [
-                        DropdownMenuItem(
-                          value: 0,
-                          child: Text('Order 1'),
-                        ),
-                        DropdownMenuItem(
-                          value: 1,
-                          child: Text('Order 2'),
-                        ),
+                        DropdownMenuItem(value: 0, child: Text('Order 1')),
+                        DropdownMenuItem(value: 1, child: Text('Order 2')),
                       ],
                       onChanged: (value) {
                         if (value == null) return;
-                        setState(() {
-                          selectedOrder = value;
-                        });
+                        setState(() => selectedOrder = value);
                       },
                     ),
                     const SizedBox(height: 16),
@@ -513,6 +498,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Study map screen
+// ---------------------------------------------------------------------------
+
 class StudyMapScreen extends StatefulWidget {
   final String participantId;
   final List<StudyRoute> routeOrder;
@@ -534,16 +523,28 @@ class StudyMapScreen extends StatefulWidget {
 }
 
 class _StudyMapScreenState extends State<StudyMapScreen> {
+  // ── Services ──────────────────────────────────────────────────────────────
   final MapController _mapController = MapController();
   final AudioPlayer _audioPlayer = AudioPlayer();
   final Location _locationService = Location();
 
   StreamSubscription<LocationData>? _locationSubscription;
 
+  // ── Study setup ───────────────────────────────────────────────────────────
   late StudyRoute currentRoute;
   late FeedbackCondition currentCondition;
   late RouteSession session;
 
+  // ── Navigation constants (spec §13) ───────────────────────────────────────
+  static const double waypointReachRadius = 6.0;
+  static const double offRouteThreshold = 10.0;
+  static const double turnCueDistance = 12.0;
+  static const double missedTurnDistance = 10.0;
+  static const double continueCueMinSeconds = 4.0;
+  static const double sameCueCooldownSeconds = 4.0;
+  static const double wrongCueCooldownSeconds = 4.0;
+
+  // ── Map / GPS state ───────────────────────────────────────────────────────
   final LatLng fallbackCenter = const LatLng(52.0907, 5.1214);
 
   LatLng? origin;
@@ -561,6 +562,7 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
   double? currentAccuracyMeters;
   double _currentZoom = 19.5;
 
+  // ── Route progress state ──────────────────────────────────────────────────
   int currentStep = 0;
 
   bool routeStarted = false;
@@ -572,32 +574,31 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
 
   String gpsStatus = 'Stand at the start point, then set origin.';
 
-  DateTime? lastCueTime;
-  DateTime? lastContinueCueTime;
-  DateTime? lastTurnCueTime;
-  DateTime? lastWrongCueTime;
+  // ── Cue cooldowns ─────────────────────────────────────────────────────────
+  // Global interlock: prevents any two cues overlapping within ~900 ms.
+  DateTime? _lastAnyCueTime;
+  // Per-type cooldowns.
+  DateTime? _lastStraightCueTime;
+  DateTime? _lastTurnCueTime;
+  DateTime? _lastWrongCueTime;
+  // Tracks which waypoint index the last turn cue was for.
+  int? _lastTurnCueWaypointIndex;
 
-  int? lastTurnCueStepIndex;
-
+  // ── Logging ───────────────────────────────────────────────────────────────
   final List<Map<String, dynamic>> pathFollowed = [];
 
-  static const double waypointReachRadius = 4.0;
-  static const double offRouteThreshold = 8.0;
-  static const double studySizeMeters = 120.0;
+  // ── Researcher controls visibility ────────────────────────────────────────
+  bool _controlsVisible = true;
 
-  static const double turnCueDistance = 12.0;
-  static const double missedTurnDistance = 10.0;
-  static const double continueCueMinSeconds = 8.0;
-  static const double sameCueCooldownSeconds = 4.0;
-  static const double wrongCueCooldownSeconds = 3.0;
+  // ── Study boundary size in metres ─────────────────────────────────────────
+  static const double studySizeMeters = 130.0;
 
+  // ---------------------------------------------------------------------------
   @override
   void initState() {
     super.initState();
-
     currentRoute = widget.routeOrder[widget.routeIndex];
     currentCondition = widget.conditionOrder[widget.routeIndex];
-
     session = RouteSession(
       participantId: widget.participantId,
       routeId: currentRoute.id,
@@ -605,7 +606,6 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
       startTime: DateTime.now(),
       events: [],
     );
-
     _logEvent('route_screen_opened');
   }
 
@@ -616,8 +616,12 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
     super.dispose();
   }
 
-  String _conditionToText(FeedbackCondition condition) {
-    switch (condition) {
+  // ---------------------------------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------------------------------
+
+  String _conditionToText(FeedbackCondition c) {
+    switch (c) {
       case FeedbackCondition.visualAudio:
         return 'Visual + Audio';
       case FeedbackCondition.visualHaptic:
@@ -627,30 +631,20 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
 
   String _currentInstruction() {
     if (!routeStarted) {
-      if (waitingForGps) return 'Waiting for GPS';
-      return 'Set study origin';
+      return waitingForGps ? 'Waiting for GPS' : 'Set study origin';
     }
-
     if (currentStep >= currentRoute.steps.length) {
       return 'Arrive at destination';
     }
-
     return currentRoute.steps[currentStep].instruction;
   }
 
   IconData _currentIcon() {
     if (!routeStarted) {
-      if (waitingForGps) return Icons.gps_not_fixed;
-      return Icons.gps_fixed;
+      return waitingForGps ? Icons.gps_not_fixed : Icons.gps_fixed;
     }
-
-    if (currentStep >= currentRoute.steps.length) {
-      return Icons.flag;
-    }
-
-    final maneuver = currentRoute.steps[currentStep].maneuver;
-
-    switch (maneuver) {
+    if (currentStep >= currentRoute.steps.length) return Icons.flag;
+    switch (currentRoute.steps[currentStep].maneuver) {
       case 'left':
         return Icons.turn_left;
       case 'right':
@@ -665,36 +659,36 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
   }
 
   void _logEvent(String type) {
-    session.events.add(
-      StudyEvent(
-        type: type,
-        timestamp: DateTime.now(),
-        stepIndex: currentStep,
-      ),
-    );
+    session.events.add(StudyEvent(
+      type: type,
+      timestamp: DateTime.now(),
+      stepIndex: currentStep,
+    ));
   }
+
+  // ---------------------------------------------------------------------------
+  // GPS / location setup
+  // ---------------------------------------------------------------------------
 
   Future<void> _startRouteAndSetOrigin() async {
     setState(() {
-      gpsStatus = 'Checking location permission...';
+      gpsStatus = 'Checking location permission…';
       routeStarted = false;
       waitingForGps = true;
     });
 
-    final canUseLocation = await _checkAndRequestLocationPermission();
-
-    if (!canUseLocation) {
+    final canUse = await _checkAndRequestLocationPermission();
+    if (!canUse) {
       setState(() {
         waitingForGps = false;
-        gpsStatus = 'Location permission denied or location service disabled.';
+        gpsStatus = 'Location permission denied or service disabled.';
       });
-
       _logEvent('location_permission_or_service_failed');
       return;
     }
 
     setState(() {
-      gpsStatus = 'Waiting for first GPS update... Keep this tab active.';
+      gpsStatus = 'Waiting for first GPS update… Keep this tab active.';
     });
 
     await _waitForFirstLocationFromStream();
@@ -703,44 +697,29 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
   Future<bool> _checkAndRequestLocationPermission() async {
     try {
       if (kIsWeb) {
-        debugPrint(
-          'LOCATION DEBUG: web mode detected. Skipping location package permission check.',
-        );
-
         await _locationService.changeSettings(
           accuracy: LocationAccuracy.high,
           interval: 1000,
           distanceFilter: 1,
         );
-
         return true;
       }
 
       bool serviceEnabled = await _locationService.serviceEnabled();
-
       if (!serviceEnabled) {
         serviceEnabled = await _locationService.requestService();
-
         if (!serviceEnabled) {
-          debugPrint('LOCATION DEBUG: location service disabled');
           _logEvent('gps_service_disabled');
           return false;
         }
       }
 
-      PermissionStatus permissionGranted = await _locationService.hasPermission();
-
-      debugPrint('LOCATION DEBUG: initial permission = $permissionGranted');
-
-      if (permissionGranted == PermissionStatus.denied) {
-        permissionGranted = await _locationService.requestPermission();
-
-        debugPrint('LOCATION DEBUG: requested permission = $permissionGranted');
+      PermissionStatus permission = await _locationService.hasPermission();
+      if (permission == PermissionStatus.denied) {
+        permission = await _locationService.requestPermission();
       }
-
-      if (permissionGranted != PermissionStatus.granted &&
-          permissionGranted != PermissionStatus.grantedLimited) {
-        debugPrint('LOCATION DEBUG: permission not granted');
+      if (permission != PermissionStatus.granted &&
+          permission != PermissionStatus.grantedLimited) {
         _logEvent('gps_permission_denied');
         return false;
       }
@@ -750,10 +729,9 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
         interval: 1000,
         distanceFilter: 1,
       );
-
       return true;
-    } catch (error) {
-      debugPrint('LOCATION DEBUG: permission check failed: $error');
+    } catch (e) {
+      debugPrint('LOCATION: permission check failed: $e');
       _logEvent('gps_permission_check_failed');
       return false;
     }
@@ -761,76 +739,50 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
 
   Future<void> _waitForFirstLocationFromStream() async {
     await _locationSubscription?.cancel();
-
-    bool firstLocationReceived = false;
+    bool firstReceived = false;
 
     _locationSubscription = _locationService.onLocationChanged.listen(
-      (LocationData locationData) {
-        debugPrint(
-          'LOCATION DEBUG: stream update '
-          'lat=${locationData.latitude}, '
-          'lng=${locationData.longitude}, '
-          'accuracy=${locationData.accuracy}, '
-          'speed=${locationData.speed}, '
-          'heading=${locationData.heading}',
-        );
-
-        if (locationData.latitude == null || locationData.longitude == null) {
-          if (!mounted) return;
-
-          setState(() {
-            gpsStatus = 'GPS update received, but latitude/longitude is null.';
-          });
-
+      (LocationData data) {
+        if (data.latitude == null || data.longitude == null) {
+          if (mounted) {
+            setState(() => gpsStatus = 'GPS update: lat/lng is null.');
+          }
           return;
         }
-
-        final start = LatLng(
-          locationData.latitude!,
-          locationData.longitude!,
-        );
-
-        if (!firstLocationReceived) {
-          firstLocationReceived = true;
-          _startGpsMode(start, locationData);
+        final pos = LatLng(data.latitude!, data.longitude!);
+        if (!firstReceived) {
+          firstReceived = true;
+          _startGpsMode(pos, data);
         } else {
-          _handleLocationUpdate(locationData);
+          _handleLocationUpdate(data);
         }
       },
-      onError: (error) {
-        debugPrint('LOCATION DEBUG: stream error: $error');
-
+      onError: (e) {
+        debugPrint('LOCATION: stream error: $e');
         if (!mounted) return;
-
         setState(() {
           waitingForGps = false;
           gpsTrackingActive = false;
-          gpsStatus = 'GPS stream error: $error';
+          gpsStatus = 'GPS stream error: $e';
         });
-
         _logEvent('location_stream_error');
       },
     );
 
     Future.delayed(const Duration(seconds: 30), () {
-      if (!mounted) return;
-      if (firstLocationReceived) return;
-
+      if (!mounted || firstReceived) return;
       setState(() {
         waitingForGps = false;
-        gpsStatus =
-            'Still waiting for GPS. Check browser permission or test on phone.';
+        gpsStatus = 'Still waiting for GPS. Check browser permission or test on phone.';
       });
-
       _logEvent('gps_first_location_timeout_30s');
     });
   }
 
-  void _startGpsMode(LatLng start, LocationData initialLocation) {
+  void _startGpsMode(LatLng start, LocationData initialData) {
     origin = start;
     currentLocation = start;
     _mapCenter = start;
-
     studyBoundary = _createStudyBoundary(start);
     fakeRoutePoints = _createFakeRoute(start, currentRoute.points);
 
@@ -844,11 +796,10 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
       session.currentStep = 0;
       userX = 0.0;
       userY = 0.0;
-      currentSpeedKmh = (initialLocation.speed ?? 0.0) * 3.6;
-      currentHeadingDegrees = initialLocation.heading;
-      currentAccuracyMeters = initialLocation.accuracy;
+      currentSpeedKmh = (initialData.speed ?? 0.0) * 3.6;
+      currentHeadingDegrees = initialData.heading;
+      currentAccuracyMeters = initialData.accuracy;
       userPath = [start];
-
       pathFollowed.add({
         'timestamp': DateTime.now().toIso8601String(),
         'mode': 'gps_origin',
@@ -857,59 +808,56 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
         'virtualX': 0.0,
         'virtualY': 0.0,
         'speedKmh': currentSpeedKmh,
-        'accuracy': initialLocation.accuracy,
-        'heading': initialLocation.heading,
+        'accuracy': initialData.accuracy,
+        'heading': initialData.heading,
         'stepIndex': currentStep,
       });
-
       gpsStatus =
-          'GPS active. Origin saved. Accuracy: ±${(initialLocation.accuracy ?? 0).toStringAsFixed(1)}m';
+          'GPS active. Accuracy: ±${(initialData.accuracy ?? 0).toStringAsFixed(1)} m';
     });
 
     _logEvent('gps_origin_set');
     _logEvent('study_area_created');
-    _logEvent('gps_mode_started_location_package');
-
+    _logEvent('gps_mode_started');
     _currentZoom = 19.5;
     _mapController.move(start, _currentZoom);
   }
 
-  void _handleLocationUpdate(LocationData locationData) {
+  void _handleLocationUpdate(LocationData data) {
     if (origin == null) return;
-    if (locationData.latitude == null || locationData.longitude == null) return;
+    if (data.latitude == null || data.longitude == null) return;
 
-    final pos = LatLng(locationData.latitude!, locationData.longitude!);
+    final pos = LatLng(data.latitude!, data.longitude!);
     final virtual = _latLngToVirtual(origin!, pos);
-    final accuracy = locationData.accuracy ?? 0.0;
-    final heading = locationData.heading;
+    final accuracy = data.accuracy ?? 0.0;
 
     setState(() {
       currentLocation = pos;
       userX = virtual.x;
       userY = virtual.y;
-      currentSpeedKmh = (locationData.speed ?? 0.0) * 3.6;
-      currentHeadingDegrees = heading;
+      currentSpeedKmh = (data.speed ?? 0.0) * 3.6;
+      currentHeadingDegrees = data.heading;
       currentAccuracyMeters = accuracy;
       userPath.add(pos);
-
       pathFollowed.add({
         'timestamp': DateTime.now().toIso8601String(),
-        'mode': 'gps_location_package',
+        'mode': 'gps',
         'lat': pos.latitude,
         'lng': pos.longitude,
         'virtualX': userX,
         'virtualY': userY,
         'speedKmh': currentSpeedKmh,
         'accuracy': accuracy,
-        'heading': heading,
+        'heading': data.heading,
         'stepIndex': currentStep,
       });
-
       gpsStatus =
-          'GPS: x=${userX.toStringAsFixed(1)}, y=${userY.toStringAsFixed(1)}, '
-          '±${accuracy.toStringAsFixed(1)}m, heading=${heading?.toStringAsFixed(0) ?? '-'}°';
+          'GPS: x=${userX.toStringAsFixed(1)}, y=${userY.toStringAsFixed(1)}'
+          ', ±${accuracy.toStringAsFixed(1)} m'
+          ', hdg=${data.heading?.toStringAsFixed(0) ?? '-'}°';
     });
 
+    // Real-time cue engine runs on every location update (spec §1).
     if (realtimeCuesEnabled) {
       _evaluateRealtimeNavigationCues();
     }
@@ -917,11 +865,9 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
 
   void _startSimulatedMode({required String reason}) {
     _locationSubscription?.cancel();
-
     origin = fallbackCenter;
     currentLocation = _offsetMetersToLatLng(fallbackCenter, 0, 0);
     _mapCenter = currentLocation;
-
     studyBoundary = _createStudyBoundary(fallbackCenter);
     fakeRoutePoints = _createFakeRoute(fallbackCenter, currentRoute.points);
 
@@ -944,99 +890,81 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
 
     _logEvent('simulated_mode_started');
     _logEvent('study_area_created_fallback');
-
     _currentZoom = 19.5;
     _mapController.move(fallbackCenter, _currentZoom);
   }
 
+  // ---------------------------------------------------------------------------
+  // Coordinate utilities
+  // ---------------------------------------------------------------------------
+
   LatLng _offsetMetersToLatLng(
-    LatLng origin,
+    LatLng orig,
     double eastMeters,
     double northMeters,
   ) {
     const earthRadius = 6378137.0;
-
     final dLat = northMeters / earthRadius;
-    final dLng = eastMeters /
-        (earthRadius * math.cos(math.pi * origin.latitude / 180.0));
-
-    final lat = origin.latitude + dLat * 180.0 / math.pi;
-    final lng = origin.longitude + dLng * 180.0 / math.pi;
-
-    return LatLng(lat, lng);
+    final dLng =
+        eastMeters / (earthRadius * math.cos(math.pi * orig.latitude / 180.0));
+    return LatLng(
+      orig.latitude + dLat * 180.0 / math.pi,
+      orig.longitude + dLng * 180.0 / math.pi,
+    );
   }
 
-  VirtualPoint _latLngToVirtual(LatLng origin, LatLng current) {
+  VirtualPoint _latLngToVirtual(LatLng orig, LatLng current) {
     const metersPerDegreeLat = 111320.0;
-
     final metersPerDegreeLng =
-        111320.0 * math.cos(origin.latitude * math.pi / 180.0);
-
-    final x = (current.longitude - origin.longitude) * metersPerDegreeLng;
-    final y = (current.latitude - origin.latitude) * metersPerDegreeLat;
-
+        111320.0 * math.cos(orig.latitude * math.pi / 180.0);
+    final x = (current.longitude - orig.longitude) * metersPerDegreeLng;
+    final y = (current.latitude - orig.latitude) * metersPerDegreeLat;
     return VirtualPoint(x, y);
   }
 
-  List<LatLng> _createStudyBoundary(LatLng origin) {
-    return [
-      _offsetMetersToLatLng(origin, 0, 0),
-      _offsetMetersToLatLng(origin, studySizeMeters, 0),
-      _offsetMetersToLatLng(origin, studySizeMeters, studySizeMeters),
-      _offsetMetersToLatLng(origin, 0, studySizeMeters),
-    ];
-  }
+  List<LatLng> _createStudyBoundary(LatLng orig) => [
+        _offsetMetersToLatLng(orig, 0, 0),
+        _offsetMetersToLatLng(orig, studySizeMeters, 0),
+        _offsetMetersToLatLng(orig, studySizeMeters, studySizeMeters),
+        _offsetMetersToLatLng(orig, 0, studySizeMeters),
+      ];
 
-  List<LatLng> _createFakeRoute(
-    LatLng origin,
-    List<VirtualPoint> virtualRoute,
-  ) {
-    return virtualRoute.map((point) {
-      return _offsetMetersToLatLng(origin, point.x, point.y);
-    }).toList();
-  }
+  List<LatLng> _createFakeRoute(LatLng orig, List<VirtualPoint> pts) =>
+      pts.map((p) => _offsetMetersToLatLng(orig, p.x, p.y)).toList();
+
+  // ---------------------------------------------------------------------------
+  // Map controls
+  // ---------------------------------------------------------------------------
 
   void _goToCurrentLocation() {
     if (currentLocation == null) return;
-
     _mapCenter = currentLocation;
     _currentZoom = 20.5;
-
     _mapController.move(currentLocation!, _currentZoom);
   }
 
   void _zoomIn() {
     final center = _mapCenter ?? currentLocation ?? origin ?? fallbackCenter;
-    final nextZoom = (_currentZoom + 0.75).clamp(3.0, 22.0).toDouble();
-
-    _currentZoom = nextZoom;
+    _currentZoom = (_currentZoom + 0.75).clamp(3.0, 22.0);
     _mapCenter = center;
-
-    _mapController.move(center, nextZoom);
+    _mapController.move(center, _currentZoom);
   }
 
   void _zoomOut() {
     final center = _mapCenter ?? currentLocation ?? origin ?? fallbackCenter;
-    final nextZoom = (_currentZoom - 0.75).clamp(3.0, 22.0).toDouble();
-
-    _currentZoom = nextZoom;
+    _currentZoom = (_currentZoom - 0.75).clamp(3.0, 22.0);
     _mapCenter = center;
-
-    _mapController.move(center, nextZoom);
+    _mapController.move(center, _currentZoom);
   }
 
   void _recalculateStudyAreaFromCurrentLocation() {
     if (currentLocation == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No current GPS point available yet.'),
-        ),
+        const SnackBar(content: Text('No current GPS point available yet.')),
       );
       return;
     }
-
     final newOrigin = currentLocation!;
-
     origin = newOrigin;
     studyBoundary = _createStudyBoundary(newOrigin);
     fakeRoutePoints = _createFakeRoute(newOrigin, currentRoute.points);
@@ -1047,13 +975,8 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
       userX = 0.0;
       userY = 0.0;
       userPath = [newOrigin];
-      lastContinueCueTime = null;
-      lastTurnCueTime = null;
-      lastWrongCueTime = null;
-      lastTurnCueStepIndex = null;
-
-      gpsStatus =
-          'Study area recalculated. Current GPS point is now virtual (0,0).';
+      _resetCueCooldowns();
+      gpsStatus = 'Study area recalculated. Current GPS point is now (0, 0).';
     });
 
     pathFollowed.add({
@@ -1067,56 +990,51 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
       'virtualY': 0.0,
       'accuracy': currentAccuracyMeters,
       'heading': currentHeadingDegrees,
-      'stepIndex': currentStep,
+      'stepIndex': 0,
     });
 
     _logEvent('study_area_recalculated_from_current_location');
-
     _mapCenter = newOrigin;
     _currentZoom = 19.5;
     _mapController.move(newOrigin, _currentZoom);
   }
 
+  // ---------------------------------------------------------------------------
+  // Real-time cue toggle
+  // ---------------------------------------------------------------------------
+
   void _toggleRealtimeCues() {
     setState(() {
       realtimeCuesEnabled = !realtimeCuesEnabled;
-      lastContinueCueTime = null;
-      lastTurnCueTime = null;
-      lastWrongCueTime = null;
-      lastTurnCueStepIndex = null;
+      if (!realtimeCuesEnabled) _resetCueCooldowns();
     });
-
     _logEvent(
-      realtimeCuesEnabled
-          ? 'realtime_cues_enabled'
-          : 'realtime_cues_disabled',
+      realtimeCuesEnabled ? 'realtime_cues_enabled' : 'realtime_cues_disabled',
     );
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          realtimeCuesEnabled
-              ? 'Real-time cues enabled'
-              : 'Real-time cues disabled. Manual controls still work.',
-        ),
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(
+        realtimeCuesEnabled
+            ? 'Real-time cues enabled'
+            : 'Real-time cues disabled. Manual controls still work.',
       ),
-    );
+    ));
   }
+
+  void _resetCueCooldowns() {
+    _lastStraightCueTime = null;
+    _lastTurnCueTime = null;
+    _lastWrongCueTime = null;
+    _lastTurnCueWaypointIndex = null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Geometry helpers
+  // ---------------------------------------------------------------------------
 
   double _distanceBetweenVirtual(VirtualPoint a, VirtualPoint b) {
     final dx = a.x - b.x;
     final dy = a.y - b.y;
-
     return math.sqrt(dx * dx + dy * dy);
-  }
-
-  double _distanceToSegment(
-    VirtualPoint p,
-    VirtualPoint a,
-    VirtualPoint b,
-  ) {
-    final projection = _projectPointToSegment(p, a, b);
-    return projection.distanceToSegment;
   }
 
   SegmentProjection _projectPointToSegment(
@@ -1124,15 +1042,8 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
     VirtualPoint a,
     VirtualPoint b,
   ) {
-    final px = p.x;
-    final py = p.y;
-    final ax = a.x;
-    final ay = a.y;
-    final bx = b.x;
-    final by = b.y;
-
-    final dx = bx - ax;
-    final dy = by - ay;
+    final dx = b.x - a.x;
+    final dy = b.y - a.y;
 
     if (dx == 0 && dy == 0) {
       return SegmentProjection(
@@ -1142,132 +1053,138 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
       );
     }
 
-    final rawT = ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy);
-    final clampedT = rawT.clamp(0.0, 1.0).toDouble();
+    final rawT =
+        ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy);
+    final t = rawT.clamp(0.0, 1.0).toDouble();
 
-    final closestX = ax + clampedT * dx;
-    final closestY = ay + clampedT * dy;
-
-    final distanceX = px - closestX;
-    final distanceY = py - closestY;
+    final cx = a.x + t * dx;
+    final cy = a.y + t * dy;
+    final distX = p.x - cx;
+    final distY = p.y - cy;
 
     return SegmentProjection(
       t: rawT,
-      distanceToSegment: math.sqrt(distanceX * distanceX + distanceY * distanceY),
-      closestPoint: VirtualPoint(closestX, closestY),
+      distanceToSegment: math.sqrt(distX * distX + distY * distY),
+      closestPoint: VirtualPoint(cx, cy),
     );
   }
 
-  bool _isCueCooldownReady(DateTime? lastTime, double seconds) {
-    if (lastTime == null) return true;
-
-    final elapsed = DateTime.now().difference(lastTime).inMilliseconds / 1000.0;
-    return elapsed >= seconds;
+  bool _cooldownReady(DateTime? last, double seconds) {
+    if (last == null) return true;
+    return DateTime.now().difference(last).inMilliseconds / 1000.0 >= seconds;
   }
 
   String _nextManeuver() {
-    if (currentStep + 1 >= currentRoute.steps.length) {
-      return 'arrive';
-    }
-
+    if (currentStep + 1 >= currentRoute.steps.length) return 'arrive';
     return currentRoute.steps[currentStep + 1].maneuver;
   }
 
+  // ---------------------------------------------------------------------------
+  // ═══ REAL-TIME CUE ENGINE (spec §10–§14) ════════════════════════════════
+  //
+  // Called from _handleLocationUpdate() on every GPS fix while enabled.
+  // This is the single authoritative source of automatic cues.
+  // ---------------------------------------------------------------------------
+
   void _evaluateRealtimeNavigationCues() {
     if (!routeStarted) return;
+
+    // Already at or past the final waypoint.
     if (currentStep >= currentRoute.points.length - 1) return;
 
-    if (currentAccuracyMeters != null && currentAccuracyMeters! > 25) {
+    // Skip if GPS accuracy is too poor to be useful.
+    if (currentAccuracyMeters != null && currentAccuracyMeters! > 25.0) {
       _logEvent('gps_accuracy_too_low_for_realtime_cues');
       return;
     }
 
     final user = VirtualPoint(userX, userY);
-    final segmentStart = currentRoute.points[currentStep];
-    final segmentEnd = currentRoute.points[currentStep + 1];
+    final segStart = currentRoute.points[currentStep];
+    final segEnd = currentRoute.points[currentStep + 1];
 
-    final projection = _projectPointToSegment(user, segmentStart, segmentEnd);
-    final distanceToSegment = projection.distanceToSegment;
-    final distanceToNextPoint = _distanceBetweenVirtual(user, segmentEnd);
+    final proj = _projectPointToSegment(user, segStart, segEnd);
+    final distToSeg = proj.distanceToSegment;
+    final distToNext = _distanceBetweenVirtual(user, segEnd);
 
     final now = DateTime.now();
 
-    if (distanceToSegment > offRouteThreshold) {
-      if (_isCueCooldownReady(lastWrongCueTime, wrongCueCooldownSeconds)) {
-        lastWrongCueTime = now;
-        _logEvent('wrong_path_detected');
+    // ── 1. Off-route / wrong path ─────────────────────────────────────────
+    if (distToSeg > offRouteThreshold) {
+      if (_cooldownReady(_lastWrongCueTime, wrongCueCooldownSeconds)) {
+        _lastWrongCueTime = now;
+        _logEvent('off_route_wrong_path_detected');
         _playCue('wrong');
       }
       return;
     }
 
-    final hasPassedWaypoint =
-        projection.t > 1.15 && distanceToNextPoint > missedTurnDistance;
-
-    if (hasPassedWaypoint) {
-      if (_isCueCooldownReady(lastWrongCueTime, wrongCueCooldownSeconds)) {
-        lastWrongCueTime = now;
+    // ── 2. Missed turn (user shot past the waypoint without turning) ───────
+    // proj.t > 1.15 means the user is clearly beyond the segment end.
+    if (proj.t > 1.15 && distToNext > missedTurnDistance) {
+      if (_cooldownReady(_lastWrongCueTime, wrongCueCooldownSeconds)) {
+        _lastWrongCueTime = now;
         _logEvent('missed_turn_detected');
         _playCue('wrong');
       }
       return;
     }
 
-    if (distanceToNextPoint <= waypointReachRadius) {
+    // ── 3. Waypoint reached → advance step ───────────────────────────────
+    if (distToNext <= waypointReachRadius) {
       setState(() {
         currentStep++;
         session.currentStep = currentStep;
-        lastTurnCueStepIndex = null;
+        _lastTurnCueWaypointIndex = null;
       });
-
-      _logEvent('auto_reached_point');
+      _logEvent('realtime_reached_waypoint');
 
       if (currentStep >= currentRoute.points.length - 1) {
         _playCue('arrive');
+        _logEvent('realtime_route_arrived');
       }
-
       return;
     }
 
-    final nextManeuver = _nextManeuver();
-
-    final approachingTurn =
-        distanceToNextPoint <= turnCueDistance &&
-        (nextManeuver == 'left' || nextManeuver == 'right');
+    // ── 4. Turn-approach cue ──────────────────────────────────────────────
+    final nextMan = _nextManeuver();
+    final approachingTurn = distToNext <= turnCueDistance &&
+        (nextMan == 'left' || nextMan == 'right');
 
     if (approachingTurn) {
-      final isNewTurnCue = lastTurnCueStepIndex != currentStep + 1;
+      final targetWaypoint = currentStep + 1;
+      final isNewTarget = _lastTurnCueWaypointIndex != targetWaypoint;
 
-      if (isNewTurnCue ||
-          _isCueCooldownReady(lastTurnCueTime, sameCueCooldownSeconds)) {
-        lastTurnCueTime = now;
-        lastTurnCueStepIndex = currentStep + 1;
-
-        _logEvent('realtime_turn_cue_$nextManeuver');
-        _playCue(nextManeuver);
+      if (isNewTarget ||
+          _cooldownReady(_lastTurnCueTime, sameCueCooldownSeconds)) {
+        _lastTurnCueTime = now;
+        _lastTurnCueWaypointIndex = targetWaypoint;
+        _logEvent('realtime_turn_cue_$nextMan');
+        _playCue(nextMan);
       }
-
       return;
     }
 
-    if (_isCueCooldownReady(lastContinueCueTime, continueCueMinSeconds)) {
-      lastContinueCueTime = now;
-
-      _logEvent('realtime_continue_straight_cue');
+    // ── 5. Straight / continue cue ────────────────────────────────────────
+    if (_cooldownReady(_lastStraightCueTime, continueCueMinSeconds)) {
+      _lastStraightCueTime = now;
+      _logEvent('realtime_straight_cue');
       _playCue('straight');
     }
   }
 
-  Future<void> _playCue(String maneuver) async {
-    final now = DateTime.now();
+  // ---------------------------------------------------------------------------
+  // Cue dispatch (audio or haptic)
+  // ---------------------------------------------------------------------------
 
-    if (lastCueTime != null &&
-        now.difference(lastCueTime!).inMilliseconds < 900) {
+  Future<void> _playCue(String maneuver) async {
+    // Global interlock: no two cues within 900 ms.
+    final now = DateTime.now();
+    if (_lastAnyCueTime != null &&
+        now.difference(_lastAnyCueTime!).inMilliseconds < 900) {
       return;
     }
-
-    lastCueTime = now;
-    _logEvent('cue_$maneuver');
+    _lastAnyCueTime = now;
+    _logEvent('cue_played_$maneuver');
 
     if (currentCondition == FeedbackCondition.visualAudio) {
       await _playAudioCue(maneuver);
@@ -1279,27 +1196,28 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
   Future<void> _playAudioCue(String maneuver) async {
     switch (maneuver) {
       case 'straight':
+        // One short high beep.
         await _playBeep(frequency: 880, durationMs: 120);
         break;
-
       case 'left':
+        // Two short high beeps.
         await _playBeep(frequency: 880, durationMs: 100);
         await Future.delayed(const Duration(milliseconds: 120));
         await _playBeep(frequency: 880, durationMs: 100);
         break;
-
       case 'right':
+        // One longer lower beep.
         await _playBeep(frequency: 660, durationMs: 350);
         break;
-
       case 'wrong':
+        // Three fast low warning beeps.
         for (int i = 0; i < 3; i++) {
           await _playBeep(frequency: 440, durationMs: 100);
-          await Future.delayed(const Duration(milliseconds: 80));
+          if (i < 2) await Future.delayed(const Duration(milliseconds: 80));
         }
         break;
-
       case 'arrive':
+        // Two rising beeps.
         await _playBeep(frequency: 1000, durationMs: 120);
         await Future.delayed(const Duration(milliseconds: 90));
         await _playBeep(frequency: 1200, durationMs: 160);
@@ -1310,26 +1228,27 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
   Future<void> _playHapticCue(String maneuver) async {
     switch (maneuver) {
       case 'straight':
+        // One light pulse.
         await HapticFeedback.lightImpact();
         break;
-
       case 'left':
+        // Two light pulses.
         await HapticFeedback.lightImpact();
         await Future.delayed(const Duration(milliseconds: 120));
         await HapticFeedback.lightImpact();
         break;
-
       case 'right':
+        // One medium pulse.
         await HapticFeedback.mediumImpact();
         break;
-
       case 'wrong':
+        // Two heavy pulses.
         await HapticFeedback.heavyImpact();
         await Future.delayed(const Duration(milliseconds: 100));
         await HapticFeedback.heavyImpact();
         break;
-
       case 'arrive':
+        // Two medium pulses.
         await HapticFeedback.mediumImpact();
         await Future.delayed(const Duration(milliseconds: 120));
         await HapticFeedback.mediumImpact();
@@ -1341,21 +1260,21 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
     required int frequency,
     required int durationMs,
   }) async {
-    final wavBytes = _generateBeepWav(
-      frequency: frequency,
-      durationMs: durationMs,
-    );
-
+    final wav = _generateBeepWav(frequency: frequency, durationMs: durationMs);
     await _audioPlayer.stop();
-    await _audioPlayer.play(BytesSource(wavBytes));
+    await _audioPlayer.play(BytesSource(wav));
   }
+
+  // ---------------------------------------------------------------------------
+  // Manual researcher controls
+  // ---------------------------------------------------------------------------
 
   void _manualReachedPoint() {
     if (!routeStarted) return;
 
     final isLastStep = currentStep >= currentRoute.points.length - 1;
-
     if (isLastStep) {
+      _logEvent('manual_finish_route');
       _playCue('arrive');
       _endRoute(completed: true);
       return;
@@ -1364,14 +1283,12 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
     setState(() {
       currentStep++;
       session.currentStep = currentStep;
-
       if (simulatedMode && origin != null) {
         final p = currentRoute.points[currentStep];
         userX = p.x;
         userY = p.y;
         currentLocation = _offsetMetersToLatLng(origin!, userX, userY);
         userPath.add(currentLocation!);
-
         pathFollowed.add({
           'timestamp': DateTime.now().toIso8601String(),
           'mode': 'simulated',
@@ -1388,17 +1305,19 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
 
   void _markError(String type) {
     if (!routeStarted) return;
-
-    _logEvent(type);
+    _logEvent('manual_$type');
     _playCue('wrong');
   }
 
   void _manualCue(String cue) {
     if (!routeStarted) return;
-
     _logEvent('manual_cue_$cue');
     _playCue(cue);
   }
+
+  // ---------------------------------------------------------------------------
+  // End of route
+  // ---------------------------------------------------------------------------
 
   Future<void> _endRoute({required bool completed}) async {
     await _locationSubscription?.cancel();
@@ -1410,34 +1329,22 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
     _logEvent(completed ? 'route_completed' : 'route_terminated');
 
     final sessionJson = session.toJson();
-
     sessionJson['routeDefinition'] = currentRoute.toJson();
     sessionJson['origin'] = origin == null
         ? null
-        : {
-            'lat': origin!.latitude,
-            'lng': origin!.longitude,
-          };
-
+        : {'lat': origin!.latitude, 'lng': origin!.longitude};
     sessionJson['trackingMode'] = simulatedMode ? 'simulated' : 'gps';
     sessionJson['pathFollowed'] = pathFollowed;
     sessionJson['gpsTrackingActive'] = gpsTrackingActive;
     sessionJson['gpsStatusAtEnd'] = gpsStatus;
     sessionJson['finalAccuracyMeters'] = currentAccuracyMeters;
     sessionJson['finalHeadingDegrees'] = currentHeadingDegrees;
-    sessionJson['finalVirtualPosition'] = {
-      'x': userX,
-      'y': userY,
-    };
+    sessionJson['finalVirtualPosition'] = {'x': userX, 'y': userY};
     sessionJson['realtimeCuesEnabledAtEnd'] = realtimeCuesEnabled;
 
-    final updatedLogs = [
-      ...widget.allSessionLogs,
-      sessionJson,
-    ];
+    final updatedLogs = [...widget.allSessionLogs, sessionJson];
 
     final prefs = await SharedPreferences.getInstance();
-
     await prefs.setString(
       'namo_${widget.participantId}',
       jsonEncode(updatedLogs),
@@ -1459,6 +1366,10 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // Build
+  // ---------------------------------------------------------------------------
+
   @override
   Widget build(BuildContext context) {
     final center = currentLocation ?? origin ?? fallbackCenter;
@@ -1479,39 +1390,28 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
           point: fakeRoutePoints.first,
           width: 50,
           height: 50,
-          child: const Icon(
-            Icons.location_on,
-            color: Colors.green,
-            size: 34,
-          ),
+          child: const Icon(Icons.location_on, color: Colors.green, size: 34),
         ),
       if (fakeRoutePoints.length > 1 && currentStep < fakeRoutePoints.length)
         Marker(
           point: fakeRoutePoints[currentStep],
           width: 50,
           height: 50,
-          child: const Icon(
-            Icons.adjust,
-            color: Colors.orange,
-            size: 30,
-          ),
+          child: const Icon(Icons.adjust, color: Colors.orange, size: 30),
         ),
       if (fakeRoutePoints.isNotEmpty)
         Marker(
           point: fakeRoutePoints.last,
           width: 50,
           height: 50,
-          child: const Icon(
-            Icons.flag,
-            color: Colors.red,
-            size: 34,
-          ),
+          child: const Icon(Icons.flag, color: Colors.red, size: 34),
         ),
     ];
 
     return Scaffold(
       body: Stack(
         children: [
+          // ── Map ────────────────────────────────────────────────────────
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
@@ -1529,46 +1429,40 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
             ),
             children: [
               TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                urlTemplate:
+                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com.example.namo',
               ),
               if (studyBoundary.length >= 3)
-                PolygonLayer(
-                  polygons: [
-                    Polygon(
-                      points: studyBoundary,
-                      color: Colors.blue.withOpacity(0.10),
-                      borderColor: Colors.blueAccent,
-                      borderStrokeWidth: 4,
-                    ),
-                  ],
-                ),
+                PolygonLayer(polygons: [
+                  Polygon(
+                    points: studyBoundary,
+                    color: Colors.blue.withOpacity(0.10),
+                    borderColor: Colors.blueAccent,
+                    borderStrokeWidth: 4,
+                  ),
+                ]),
               if (fakeRoutePoints.length >= 2)
-                PolylineLayer(
-                  polylines: [
-                    Polyline(
-                      points: fakeRoutePoints,
-                      strokeWidth: 7,
-                      color: Colors.black,
-                    ),
-                  ],
-                ),
+                PolylineLayer(polylines: [
+                  Polyline(
+                    points: fakeRoutePoints,
+                    strokeWidth: 6,
+                    color: Colors.black,
+                  ),
+                ]),
               if (userPath.length >= 2)
-                PolylineLayer(
-                  polylines: [
-                    Polyline(
-                      points: userPath,
-                      strokeWidth: 4,
-                      color: Colors.blue,
-                    ),
-                  ],
-                ),
-              if (markers.isNotEmpty)
-                MarkerLayer(
-                  markers: markers,
-                ),
+                PolylineLayer(polylines: [
+                  Polyline(
+                    points: userPath,
+                    strokeWidth: 4,
+                    color: Colors.blue,
+                  ),
+                ]),
+              MarkerLayer(markers: markers),
             ],
           ),
+
+          // ── Instruction card ───────────────────────────────────────────
           Positioned(
             top: 48,
             left: 16,
@@ -1577,14 +1471,17 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
               instruction: _currentInstruction(),
               routeId: currentRoute.id,
               condition: _conditionToText(currentCondition),
-              stepText: 'Step ${currentStep + 1} of ${currentRoute.steps.length}',
+              stepText:
+                  'Step ${currentStep + 1} of ${currentRoute.steps.length}',
               gpsStatus: gpsStatus,
               icon: _currentIcon(),
               realtimeCuesEnabled: realtimeCuesEnabled,
             ),
           ),
+
+          // ── Map control buttons ────────────────────────────────────────
           Positioned(
-            top: 190,
+            top: 210,
             right: 16,
             child: _MapControlButtons(
               onZoomIn: _zoomIn,
@@ -1592,6 +1489,8 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
               onRecalculateArea: _recalculateStudyAreaFromCurrentLocation,
             ),
           ),
+
+          // ── Start / waiting overlay ────────────────────────────────────
           if (!routeStarted)
             Center(
               child: Card(
@@ -1607,13 +1506,17 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        waitingForGps ? Icons.gps_not_fixed : Icons.gps_fixed,
+                        waitingForGps
+                            ? Icons.gps_not_fixed
+                            : Icons.gps_fixed,
                         size: 42,
                         color: Colors.blue,
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        waitingForGps ? 'Waiting for GPS' : 'Set study origin',
+                        waitingForGps
+                            ? 'Waiting for GPS'
+                            : 'Set study origin',
                         style: const TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
@@ -1623,22 +1526,22 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
                       Text(
                         waitingForGps
                             ? 'The app is waiting for the first valid location update.\nCheck browser permission or test on phone.'
-                            : 'Stand at the physical start point.\nThe app will use the first valid GPS update as virtual point (0,0).',
+                            : 'Stand at the physical start point.\nThe first valid GPS update will become virtual (0, 0).',
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 16),
                       FilledButton(
-                        onPressed:
-                            waitingForGps ? null : _startRouteAndSetOrigin,
-                        child: const Text('Start Route and Set Origin'),
+                        onPressed: waitingForGps
+                            ? null
+                            : _startRouteAndSetOrigin,
+                        child:
+                            const Text('Start Route and Set Origin'),
                       ),
                       const SizedBox(height: 8),
                       OutlinedButton(
-                        onPressed: () {
-                          _startSimulatedMode(
-                            reason: 'Simulated route mode selected manually.',
-                          );
-                        },
+                        onPressed: () => _startSimulatedMode(
+                          reason: 'Simulated route mode selected manually.',
+                        ),
                         child: const Text('Use Simulated Mode'),
                       ),
                     ],
@@ -1646,22 +1549,29 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
                 ),
               ),
             ),
+
+          // ── Researcher controls ────────────────────────────────────────
           if (routeStarted)
             Positioned(
               bottom: 20,
               left: 16,
               right: 16,
               child: _ResearcherControls(
-                isLastStep: currentStep >= currentRoute.points.length - 1,
+                isLastStep:
+                    currentStep >= currentRoute.points.length - 1,
                 speedText: simulatedMode
                     ? 'Simulated mode'
                     : '${currentSpeedKmh.toStringAsFixed(1)} km/h'
-                        '${currentAccuracyMeters == null ? '' : ' • ±${currentAccuracyMeters!.toStringAsFixed(1)}m'}',
+                        '${currentAccuracyMeters == null ? '' : ' · ±${currentAccuracyMeters!.toStringAsFixed(1)} m'}',
                 realtimeCuesEnabled: realtimeCuesEnabled,
+                controlsVisible: _controlsVisible,
+                onToggleVisibility: () {
+                  setState(() => _controlsVisible = !_controlsVisible);
+                },
                 onToggleRealtimeCues: _toggleRealtimeCues,
                 onReachedPoint: _manualReachedPoint,
                 onMissedTurn: () => _markError('missed_turn'),
-                onWrongTurn: () => _markError('wrong_turn'),
+                onWrongPath: () => _markError('wrong_path'),
                 onCueStraight: () => _manualCue('straight'),
                 onCueLeft: () => _manualCue('left'),
                 onCueRight: () => _manualCue('right'),
@@ -1669,8 +1579,8 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
                 onTerminate: () => _endRoute(completed: false),
                 onGoToLocation: _goToCurrentLocation,
                 onTestCue: () {
-                  final maneuver = currentRoute.steps[currentStep].maneuver;
-                  _manualCue(maneuver);
+                  final m = currentRoute.steps[currentStep].maneuver;
+                  _manualCue(m);
                 },
               ),
             ),
@@ -1679,6 +1589,10 @@ class _StudyMapScreenState extends State<StudyMapScreen> {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Map control buttons widget
+// ---------------------------------------------------------------------------
 
 class _MapControlButtons extends StatelessWidget {
   final VoidCallback onZoomIn;
@@ -1697,9 +1611,7 @@ class _MapControlButtons extends StatelessWidget {
       elevation: 6,
       color: Colors.white,
       surfaceTintColor: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1726,6 +1638,10 @@ class _MapControlButtons extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// User location marker widget
+// ---------------------------------------------------------------------------
+
 class _UserLocationMarker extends StatelessWidget {
   final double? headingDegrees;
   final bool isGpsActive;
@@ -1737,7 +1653,7 @@ class _UserLocationMarker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final rotationRadians = ((headingDegrees ?? 0.0) * math.pi) / 180.0;
+    final radians = ((headingDegrees ?? 0.0) * math.pi) / 180.0;
 
     return Stack(
       alignment: Alignment.center,
@@ -1758,30 +1674,26 @@ class _UserLocationMarker extends StatelessWidget {
             shape: BoxShape.circle,
             border: Border.all(color: Colors.white, width: 3),
             boxShadow: const [
-              BoxShadow(
-                blurRadius: 8,
-                spreadRadius: 1,
-                color: Colors.black26,
-              ),
+              BoxShadow(blurRadius: 8, spreadRadius: 1, color: Colors.black26),
             ],
           ),
         ),
         if (headingDegrees != null)
           Transform.rotate(
-            angle: rotationRadians,
+            angle: radians,
             child: const Padding(
               padding: EdgeInsets.only(bottom: 38),
-              child: Icon(
-                Icons.navigation,
-                color: Colors.blue,
-                size: 26,
-              ),
+              child: Icon(Icons.navigation, color: Colors.blue, size: 26),
             ),
           ),
       ],
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Instruction card widget
+// ---------------------------------------------------------------------------
 
 class _InstructionCard extends StatelessWidget {
   final String instruction;
@@ -1804,14 +1716,12 @@ class _InstructionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final realtimeText =
-        realtimeCuesEnabled ? 'Realtime cues: ON' : 'Realtime cues: OFF';
-
     return Card(
       elevation: 8,
       color: Colors.white,
       surfaceTintColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
@@ -1820,14 +1730,12 @@ class _InstructionCard extends StatelessWidget {
               width: 54,
               height: 54,
               decoration: BoxDecoration(
-                color: realtimeCuesEnabled ? Colors.blue.shade600 : Colors.grey,
+                color: realtimeCuesEnabled
+                    ? Colors.blue.shade600
+                    : Colors.grey,
                 shape: BoxShape.circle,
               ),
-              child: Icon(
-                icon,
-                color: Colors.white,
-                size: 32,
-              ),
+              child: Icon(icon, color: Colors.white, size: 32),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -1843,7 +1751,7 @@ class _InstructionCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '$routeId • $condition • $stepText',
+                    '$routeId · $condition · $stepText',
                     style: TextStyle(
                       fontSize: 13,
                       color: Colors.grey.shade700,
@@ -1851,7 +1759,9 @@ class _InstructionCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    realtimeText,
+                    realtimeCuesEnabled
+                        ? 'Realtime cues: ON'
+                        : 'Realtime cues: OFF',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
@@ -1878,14 +1788,20 @@ class _InstructionCard extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Researcher controls widget
+// ---------------------------------------------------------------------------
+
 class _ResearcherControls extends StatelessWidget {
   final bool isLastStep;
   final String speedText;
   final bool realtimeCuesEnabled;
+  final bool controlsVisible;
+  final VoidCallback onToggleVisibility;
   final VoidCallback onToggleRealtimeCues;
   final VoidCallback onReachedPoint;
   final VoidCallback onMissedTurn;
-  final VoidCallback onWrongTurn;
+  final VoidCallback onWrongPath;
   final VoidCallback onCueStraight;
   final VoidCallback onCueLeft;
   final VoidCallback onCueRight;
@@ -1898,10 +1814,12 @@ class _ResearcherControls extends StatelessWidget {
     required this.isLastStep,
     required this.speedText,
     required this.realtimeCuesEnabled,
+    required this.controlsVisible,
+    required this.onToggleVisibility,
     required this.onToggleRealtimeCues,
     required this.onReachedPoint,
     required this.onMissedTurn,
-    required this.onWrongTurn,
+    required this.onWrongPath,
     required this.onCueStraight,
     required this.onCueLeft,
     required this.onCueRight,
@@ -1917,119 +1835,159 @@ class _ResearcherControls extends StatelessWidget {
       elevation: 8,
       color: Colors.white,
       surfaceTintColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              'Researcher controls • $speedText',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade700,
-              ),
-            ),
-            const SizedBox(height: 8),
-            FilledButton(
-              onPressed: onToggleRealtimeCues,
-              style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(42),
-                backgroundColor:
-                    realtimeCuesEnabled ? Colors.green : Colors.red,
-              ),
-              child: Text(
-                realtimeCuesEnabled
-                    ? 'Disable Real-Time Cues'
-                    : 'Enable Real-Time Cues',
-              ),
-            ),
-            const SizedBox(height: 8),
-            FilledButton(
-              onPressed: onReachedPoint,
-              style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(46),
-              ),
-              child: Text(isLastStep ? 'Finish Route' : 'Reached Point'),
-            ),
-            const SizedBox(height: 8),
+            // Header row with hide/show toggle.
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: onMissedTurn,
-                    child: const Text('Missed'),
+                Text(
+                  'Researcher controls · $speedText',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade700,
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: onWrongTurn,
-                    child: const Text('Wrong'),
+                IconButton(
+                  tooltip: controlsVisible
+                      ? 'Hide controls'
+                      : 'Show controls',
+                  onPressed: onToggleVisibility,
+                  icon: Icon(
+                    controlsVisible
+                        ? Icons.expand_more
+                        : Icons.expand_less,
+                    size: 20,
                   ),
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: onCueStraight,
-                    child: const Text('Straight'),
-                  ),
+
+            if (controlsVisible) ...[
+              const SizedBox(height: 8),
+
+              // Real-time cue toggle.
+              FilledButton(
+                onPressed: onToggleRealtimeCues,
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(42),
+                  backgroundColor:
+                      realtimeCuesEnabled ? Colors.green : Colors.red,
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: onCueLeft,
-                    child: const Text('Left'),
-                  ),
+                child: Text(
+                  realtimeCuesEnabled
+                      ? 'Disable Real-Time Cues'
+                      : 'Enable Real-Time Cues',
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: onCueRight,
-                    child: const Text('Right'),
-                  ),
+              ),
+              const SizedBox(height: 8),
+
+              // Reached Point / Finish Route.
+              FilledButton(
+                onPressed: onReachedPoint,
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(46),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: onCueWrong,
-                    child: const Text('Wrong Cue'),
+                child:
+                    Text(isLastStep ? 'Finish Route' : 'Reached Point'),
+              ),
+              const SizedBox(height: 8),
+
+              // Missed Turn / Wrong Path.
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: onMissedTurn,
+                      child: const Text('Missed Turn'),
+                    ),
                   ),
-                ),
-              ],
-            ),
-            Row(
-              children: [
-                Expanded(
-                  child: TextButton(
-                    onPressed: onGoToLocation,
-                    child: const Text('Center'),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: onWrongPath,
+                      child: const Text('Wrong Path'),
+                    ),
                   ),
-                ),
-                Expanded(
-                  child: TextButton(
-                    onPressed: onTestCue,
-                    child: const Text('Test Current'),
+                ],
+              ),
+              const SizedBox(height: 8),
+
+              // Manual cue buttons.
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: onCueStraight,
+                      child: const Text('Straight'),
+                    ),
                   ),
-                ),
-                Expanded(
-                  child: TextButton(
-                    onPressed: onTerminate,
-                    child: const Text('Terminate'),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: onCueLeft,
+                      child: const Text('Left'),
+                    ),
                   ),
-                ),
-              ],
-            ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: onCueRight,
+                      child: const Text('Right'),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: onCueWrong,
+                      child: const Text('Wrong'),
+                    ),
+                  ),
+                ],
+              ),
+
+              // Utility buttons.
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: onGoToLocation,
+                      child: const Text('Center'),
+                    ),
+                  ),
+                  Expanded(
+                    child: TextButton(
+                      onPressed: onTestCue,
+                      child: const Text('Test Current'),
+                    ),
+                  ),
+                  Expanded(
+                    child: TextButton(
+                      onPressed: onTerminate,
+                      child: const Text('Terminate'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Summary screen
+// ---------------------------------------------------------------------------
 
 class SummaryScreen extends StatelessWidget {
   final String participantId;
@@ -2064,11 +2022,9 @@ class SummaryScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _copyJson(BuildContext context, String jsonText) async {
-    await Clipboard.setData(ClipboardData(text: jsonText));
-
+  Future<void> _copyJson(BuildContext context, String json) async {
+    await Clipboard.setData(ClipboardData(text: json));
     if (!context.mounted) return;
-
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('JSON copied to clipboard')),
     );
@@ -2161,6 +2117,10 @@ class SummaryScreen extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// WAV beep generator (PCM, 16-bit mono)
+// ---------------------------------------------------------------------------
+
 Uint8List _generateBeepWav({
   required int frequency,
   required int durationMs,
@@ -2183,8 +2143,8 @@ Uint8List _generateBeepWav({
   writeString(8, 'WAVE');
   writeString(12, 'fmt ');
   bytes.setUint32(16, 16, Endian.little);
-  bytes.setUint16(20, 1, Endian.little);
-  bytes.setUint16(22, 1, Endian.little);
+  bytes.setUint16(20, 1, Endian.little);  // PCM
+  bytes.setUint16(22, 1, Endian.little);  // Mono
   bytes.setUint32(24, sampleRate, Endian.little);
   bytes.setUint32(28, sampleRate * 2, Endian.little);
   bytes.setUint16(32, 2, Endian.little);
@@ -2192,14 +2152,12 @@ Uint8List _generateBeepWav({
   writeString(36, 'data');
   bytes.setUint32(40, dataLength, Endian.little);
 
-  final amplitude = 0.35 * 32767;
-
+  const amplitude = 0.35 * 32767;
   for (int i = 0; i < sampleCount; i++) {
     final t = i / sampleRate;
     final envelope = math.sin(math.pi * i / sampleCount);
     final sample = math.sin(2 * math.pi * frequency * t);
     final value = (sample * envelope * amplitude).round();
-
     bytes.setInt16(44 + i * 2, value, Endian.little);
   }
 
